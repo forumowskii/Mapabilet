@@ -1,0 +1,135 @@
+:root {
+    --primary: #6366f1;
+    --success: #22c55e;
+    --bg: #0f172a;
+    --card-bg: rgba(30, 41, 59, 0.7);
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background: radial-gradient(circle at top left, #1e1b4b, #0f172a);
+    color: white;
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+    min-height: 100vh;
+    margin: 0;
+}
+
+.app-container {
+    width: 100%;
+    max-width: 450px;
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    padding: 30px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+h1 { font-size: 1.5rem; text-align: center; margin-bottom: 30px; }
+
+/* Pasek postępu */
+.progress-container {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    height: 24px;
+    width: 100%;
+    overflow: hidden;
+    margin: 15px 0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6366f1, #a855f7);
+    width: 0%;
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 20px rgba(99, 102, 241, 0.5);
+}
+
+/* Formularze */
+input {
+    width: 100%;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: white;
+    margin-bottom: 10px;
+    box-sizing: border-box;
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    border-radius: 12px;
+    border: none;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s, opacity 0.2s;
+    margin-bottom: 10px;
+}
+
+button:active { transform: scale(0.98); }
+
+.btn-check { background: #334155; color: white; }
+.btn-add { background: var(--success); color: white; }
+
+/* Lista stacji */
+.station-status {
+    padding: 10px;
+    border-radius: 8px;
+    text-align: center;
+    font-size: 0.9rem;
+    margin-bottom: 20px;
+    min-height: 20px;
+}/* Dodatek do style.css */
+.card {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 18px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.action-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.btn-add {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px !important;
+    background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
+}
+
+.btn-add.secondary {
+    background: linear-gradient(135deg, #334155, #1e293b) !important;
+}
+
+.info-item {
+    display: flex;
+    gap: 15px;
+    margin-top: 15px;
+    font-size: 0.9rem;
+}
+
+.highlight {
+    color: #818cf8;
+    font-weight: 800;
+}
+
+.map-placeholder {
+    margin-top: 20px;
+    height: 100px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed rgba(255,255,255,0.2);
+}

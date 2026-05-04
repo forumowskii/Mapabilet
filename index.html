@@ -3,40 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mój Bilet Miesięczny</title>
+    <title>Bilet Tracker Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
     <div class="app-container">
-        <h1>🎫 Licznik Biletu</h1>
-        
-        <div class="stats">
-            <p>Postęp zwrotu biletów: <span id="progress-text">0%</span></p>
-            <div class="progress-bar">
-                <div id="bar-fill" style="width: 0%"></div>
+        <header class="app-header">
+            <div class="logo-area">
+                <span class="icon">🎫</span>
+                <h1>Mój Bilet</h1>
             </div>
-        </div>
+            <div class="status-badge">Aktywny</div>
+        </header>
 
-        <div class="search-section">
-            <input type="text" id="station-input" placeholder="Wpisz stację (np. Gdansk)..." list="stations-list">
-            <datalist id="stations-list">
-                <option value="Gdansk">
-                <option value="Gdynia">
-                <option value="Sopot">
-                <option value="Wejherowo">
-            </datalist>
-            <button onclick="checkStation()">Sprawdź & Dodaj</button>
-            <p id="result-msg"></p>
-        </div>
+        <section class="card progress-card">
+            <div class="card-header">
+                <span>Postęp zwrotu</span>
+                <span id="percentage-label" class="highlight">0%</span>
+            </div>
+            
+            <div class="progress-container">
+                <div id="bar-fill"></div>
+            </div>
 
-        <div class="info-card">
-            <h3>📍 Ważne kierunki</h3>
-            <ul>
-                <li>Praca: 20 zł</li>
-                <li>Uczelnia: 15 zł</li>
-            </ul>
-        </div>
+            <div class="progress-stats">
+                <div class="stat-item">
+                    <small>Zaoszczędzone</small>
+                    <p id="earned-val">0 zł</p>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <small>Cel (Koszt)</small>
+                    <p>150 zł</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="card search-card">
+            <h3>🔍 Sprawdź zasięg</h3>
+            <div class="input-group">
+                <input type="text" id="station-input" placeholder="Wpisz stację..." list="stations-list">
+                <datalist id="stations-list">
+                    <option value="Gdańsk Główny">
+                    <option value="Gdańsk Oliwa">
+                    <option value="Sopot">
+                    <option value="Gdynia Główna">
+                    <option value="Wejherowo">
+                    <option value="Rumia">
+                    <option value="Reda">
+                </datalist>
+                <button class="btn-check" onclick="checkStation()">Sprawdź</button>
+            </div>
+            <div id="result-msg" class="status-msg">Wpisz nazwę, aby sprawdzić bilet</div>
+        </section>
+
+        <section class="card action-card">
+            <h3>🚀 Rejestruj przejazd</h3>
+            <p class="desc">Kliknij, jeśli właśnie skorzystałeś z wozu.</p>
+            <div class="action-grid">
+                <button class="btn-add" onclick="addNewTrip(10)">
+                    <span class="btn-icon">⚡</span>
+                    <span>Dolicz 10 zł</span>
+                </button>
+                <button class="btn-add secondary" onclick="addNewTrip(15)">
+                    <span class="btn-icon">🛣️</span>
+                    <span>Dolicz 15 zł</span>
+                </button>
+            </div>
+        </section>
+
+        <section class="card info-card">
+            <h3>📍 Ważne kierunki i Mapy</h3>
+            <div class="info-list">
+                <div class="info-item">
+                    <span class="bullet">🏠</span>
+                    <div>
+                        <strong>Dom -> Praca</strong>
+                        <p>Linia S1, S2 (Strefa A+B)</p>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <span class="bullet">🎓</span>
+                    <div>
+                        <strong>Uczelnia</strong>
+                        <p>Wysiadka: Gdańsk Politechnika</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="map-placeholder">
+                <p>🗺️ Mapa stref dostępna w galerii</p>
+            </div>
+        </section>
+
+        <footer class="app-footer">
+            <p>Zsynchronizowano z Google Firebase Cloud</p>
+        </footer>
     </div>
-    <script src="app.js"></script>
+
 </body>
 </html>
