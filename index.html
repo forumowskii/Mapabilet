@@ -3,132 +3,129 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bilet Tracker Pro</title>
+    <title>Bilet Tracker Pro v5.0</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
     <style>
-        /* Styl dla mapy pełnoekranowej */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.95); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
-        .modal.active { display: flex; }
-        .close-btn { position: absolute; top: 20px; right: 20px; background: #ef4444; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-        #svg-map { width: 90%; max-width: 500px; height: 60vh; background: #1e293b; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); }
-        .legend { display: flex; gap: 15px; margin-top: 20px; font-size: 0.8rem; }
-        .legend-item { display: flex; align-items: center; gap: 5px; }
-        .color-box { width: 15px; height: 15px; border-radius: 3px; }
+        :root { --bg: #0f172a; --card: #1e293b; --accent: #6366f1; --success: #22c55e; --text: #f8fafc; }
+        body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .app-container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px; }
         
-        .history-list { max-height: 250px; overflow-y: auto; margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
-        .history-item { background: rgba(255, 255, 255, 0.05); padding: 12px; border-radius: 8px; font-size: 0.85rem; border-left: 4px solid #6366f1; display: flex; justify-content: space-between; align-items: center; }
-        .split-btn { display: flex; gap: 10px; }
-        .split-btn button { flex: 1; padding: 12px; font-weight: bold; border-radius: 8px; border: none; cursor: pointer; }
+        .card { background: var(--card); padding: 20px; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); }
+        h1, h2, h3 { margin: 0; }
+        
+        /* Progress Bar */
+        .progress-container { background: rgba(0,0,0,0.2); height: 12px; border-radius: 10px; overflow: hidden; margin: 10px 0; }
+        #bar-fill { background: var(--accent); height: 100%; width: 0%; transition: width 0.5s ease; }
+        
+        /* Form elements */
+        input, select, button { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; box-sizing: border-box; font-size: 14px; }
+        button { background: var(--accent); font-weight: bold; cursor: pointer; border: none; transition: opacity 0.2s; }
+        button:active { opacity: 0.8; }
+        
+        .status-online { background: var(--success); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+        
+        /* History & Modals */
+        .history-list { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .history-item { background: rgba(255,255,255,0.03); padding: 10px; border-radius: 8px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid var(--accent); }
+        
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 100; flex-direction: column; padding: 20px; box-sizing: border-box; overflow-y: auto; }
+        .modal.active { display: flex; }
+        
+        #svg-map { width: 100%; height: 60vh; background: #000; border-radius: 12px; margin: 20px 0; border: 1px solid #334155; }
+        .legend { display: flex; gap: 10px; font-size: 11px; justify-content: center; flex-wrap: wrap; }
+        .legend-i { display: flex; align-items: center; gap: 4px; }
+        .dot { width: 10px; height: 10px; border-radius: 2px; }
     </style>
 </head>
 <body>
 
     <div class="app-container">
-        <header class="app-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <div class="logo-area">
-                <span style="font-size: 1.5rem;">🚆</span>
-                <h1 style="display: inline; margin-left: 10px; font-size: 1.2rem;">Licznik Kolejowy</h1>
-            </div>
-            <div id="connection-status" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold;">
-                Online
-            </div>
+        <header style="display: flex; justify-content: space-between; align-items: center;">
+            <h2>🚆 Licznik biletowy</h2>
+            <div class="status-online">Online</div>
         </header>
 
-        <section class="card progress-card">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                <span style="opacity: 0.8; font-size: 0.9rem;">Zysk z biletu</span>
-                <span id="percentage-label" style="color: #818cf8; font-weight: 800;">0%</span>
+        <section class="card">
+            <div style="display: flex; justify-content: space-between; font-size: 14px; opacity: 0.8;">
+                <span>Zysk z biletu (150 zł)</span>
+                <span id="percentage-label">0%</span>
             </div>
             <div class="progress-container"><div id="bar-fill"></div></div>
-            <div style="display: flex; justify-content: space-between; margin-top: 15px; text-align: center;">
-                <div style="flex: 1;">
-                    <small style="opacity: 0.6; font-size: 0.7rem;">WYJEŻDŻONE</small>
-                    <p id="earned-val" style="font-size: 1.4rem; font-weight: 800; margin: 5px 0;">0.00 zł</p>
-                </div>
-                <div style="flex: 1;">
-                    <small style="opacity: 0.6; font-size: 0.7rem;">KOSZT BILETU</small>
-                    <p style="font-size: 1.4rem; font-weight: 800; margin: 5px 0; opacity: 0.5;">150.00 zł</p>
-                </div>
-            </div>
+            <div id="earned-val" style="font-size: 32px; font-weight: 800; text-align: center; margin-top: 10px;">0.00 zł</div>
         </section>
 
-        <section class="card" style="padding: 10px 20px;">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 0.8rem; opacity: 0.8;">Brak stacji na liście?</span>
-                <button onclick="window.promptAddStation()" style="background: #334155; color: white; padding: 5px 10px; font-size: 0.7rem; width: auto; margin: 0;">+ Dodaj do Taryfy</button>
-            </div>
+        <section class="card" style="display: flex; gap: 10px; padding: 10px;">
+            <button onclick="window.openMap()" style="background: #facc15; color: #000;">🗺️ MAPA / EDYCJA</button>
+            <button onclick="window.openStationList()" style="background: #334155;">📋 LISTA STACJI</button>
         </section>
 
-        <section class="card action-card">
-            <h3 style="margin-top: 0; font-size: 1rem; color: #22c55e;">📝 Rejestracja Przejazdu</h3>
+        <section class="card">
+            <h3 style="color: var(--success); font-size: 16px; margin-bottom: 15px;">📝 Dodaj Przejazd</h3>
             <div style="display: grid; gap: 10px;">
-                <input type="text" id="train-nr" placeholder="Nr Pociągu (opcjonalnie)">
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                    <div>
-                        <label style="font-size:0.7rem; opacity:0.6;">Stacja OD</label>
-                        <input type="text" id="route-from" placeholder="np. Gdańsk" list="stations-list">
-                    </div>
-                    <div>
-                        <label style="font-size:0.7rem; opacity:0.6;">Stacja DO</label>
-                        <input type="text" id="route-to" placeholder="np. Sopot" list="stations-list">
-                    </div>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="route-from" placeholder="Od (np. Gdańsk)" list="stations-list">
+                    <input type="text" id="route-to" placeholder="Do (np. Sopot)" list="stations-list">
                 </div>
-
                 <datalist id="stations-list"></datalist>
-
-                <div style="display: flex; gap: 10px; align-items: flex-end;">
-                    <div style="flex: 1;">
-                        <label style="font-size:0.7rem; opacity:0.6;">Zniżka</label>
-                        <select id="discount-select" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.2); color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
-                            <option value="0">Brak (Normalny)</option>
-                            <option value="0.25">25%</option>
-                            <option value="0.33">33%</option>
-                            <option value="0.37">37%</option>
-                            <option value="0.49">49%</option>
-                            <option value="0.50">50%</option>
-                            <option value="0.51">51% (Studencka)</option>
-                        </select>
-                    </div>
-                    <div style="flex: 1;">
-                        <label style="font-size:0.7rem; opacity:0.6;">Kwota (PLN)</label>
-                        <input type="number" id="trip-amount" step="0.10" placeholder="0.00">
-                    </div>
+                
+                <div style="display: flex; gap: 10px;">
+                    <select id="discount-select">
+                        <option value="0">Normalny</option>
+                        <option value="0.51">Student (51%)</option>
+                        <option value="0.37">KDR (37%)</option>
+                        <option value="0.33">Nauczyciel (33%)</option>
+                        <option value="0.93">Niewidomy (93%)</option>
+                    </select>
+                    <input type="number" id="trip-amount" step="0.01" placeholder="Kwota">
                 </div>
-
-                <div id="calc-msg" style="font-size: 0.75rem; text-align: center; color: #aaa; margin-bottom: 5px;"></div>
-
-                <div class="split-btn">
-                    <button onclick="window.calculatePrice()" style="background: #6366f1; color: white;">🧮 Oblicz cenę</button>
-                    <button onclick="window.addNewTripFull()" style="background: #22c55e; color: white;">✅ Dodaj do bazy</button>
+                
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="window.calculatePrice()" style="background: var(--accent);">🧮 OBLICZ</button>
+                    <button onclick="window.addNewTrip()" style="background: var(--success);">✅ ZAPISZ</button>
                 </div>
+                <p id="calc-info" style="font-size: 11px; text-align: center; color: #94a3b8; margin: 0;"></p>
             </div>
         </section>
 
         <section class="card">
-            <button onclick="window.openMap()" style="background: #facc15; color: #1e293b; font-weight: bold; width: 100%;">🗺️ Otwórz mapę przejazdów (Heatmapa)</button>
-        </section>
-
-        <section class="card">
-            <h3 style="margin-top: 0; font-size: 1rem; color: #6366f1;">📜 Zapisana Historia</h3>
-            <div id="history-list" class="history-list">Ładowanie historii z chmury...</div>
+            <h3 style="font-size: 14px; opacity: 0.7; margin-bottom: 10px;">📜 Historia</h3>
+            <div id="history-list" class="history-list">Ładowanie...</div>
         </section>
     </div>
 
     <div id="map-modal" class="modal">
-        <button class="close-btn" onclick="window.closeMap()">Zamknij Mapę X</button>
-        <h2 style="color: white; margin-bottom: 10px;">Natężenie tras</h2>
-        
-        <svg id="svg-map" viewBox="0 0 200 500">
-            </svg>
-
-        <div class="legend" style="color: white;">
-            <div class="legend-item"><div class="color-box" style="background: #64748b;"></div> 0</div>
-            <div class="legend-item"><div class="color-box" style="background: #f59e0b;"></div> 1-4</div>
-            <div class="legend-item"><div class="color-box" style="background: #ea580c;"></div> 5-19</div>
-            <div class="legend-item"><div class="color-box" style="background: #dc2626;"></div> 20+</div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h3>🗺️ Interaktywna Sieć</h3>
+            <button onclick="window.closeMap()" style="width: auto; background: #ef4444;">Zamknij X</button>
         </div>
+        
+        <svg id="svg-map" viewBox="0 0 400 600"></svg>
+
+        <div class="legend">
+            <div class="legend-i"><div class="dot" style="background:#475569"></div> 0</div>
+            <div class="legend-i"><div class="dot" style="background:#f97316"></div> 1-4</div>
+            <div class="legend-i"><div class="dot" style="background:#ef4444"></div> 5-19</div>
+            <div class="legend-i"><div class="dot" style="background:#7f1d1d; border:1px solid red"></div> 20+ przejazdów</div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <h4>➕ Dodaj punkt na mapie</h4>
+            <div style="display: grid; gap: 8px; margin-top: 10px;">
+                <input type="text" id="new-st-name" placeholder="Nazwa stacji">
+                <input type="number" id="new-st-km" placeholder="Km od Gdańska Gł. (np. 44)">
+                <input type="text" id="new-st-parent" placeholder="Z jakiej stacji wychodzi? (rodzic)" list="stations-list">
+                <div style="display: flex; gap: 5px;">
+                    <input type="number" id="new-st-x" placeholder="Poz. X (0-400)">
+                    <input type="number" id="new-st-y" placeholder="Poz. Y (0-600)">
+                </div>
+                <button onclick="window.saveNewStation()">DODAJ STACJĘ DO SYSTEMU</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="list-modal" class="modal">
+        <button onclick="window.closeStationList()" style="margin-bottom: 20px; background: #334155;">Powrót</button>
+        <div id="full-station-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;"></div>
     </div>
 
     <script type="module" src="./app.js"></script>

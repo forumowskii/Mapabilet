@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-// KONFIGURACJA (Twoja)
+// --- KONFIGURACJA FIREBASE ---
 const firebaseConfig = {
     apiKey: "AIzaSyCqWomuAPeflvawobPGRlNIqE-7H1cU4bs",
     authDomain: "biliet.firebaseapp.com",
@@ -15,262 +15,271 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// REFERENCJE
+// Referencje
 const statsRef = ref(db, 'stats/oszczednosci');
 const tripsRef = ref(db, 'stats/przejazdy');
-const stationsRef = ref(db, 'stats/stacje');
+const stationsRef = ref(db, 'stats/stacje_siec');
 
 let earnedSoFar = 0;
-const ticketPrice = 150;
-let stationsData = {}; // Pobierane z Firebase
-let tripsData = []; // Historia z bazy
+let stations = {};
+let trips = [];
 
-// BAZOWE STACJE (Jeśli baza jest pusta, to się wgrają)
-const defaultStations = {
-    "tczew": 0, "pszczółki": 15, "gdańsk główny": 35, "gdańsk wrzeszcz": 40,
-    "gdańsk oliwa": 43, "sopot": 47, "gdynia główna": 56, "rumia": 66, "reda": 70, "wejherowo": 79
+// --- TARYFA POMORSKA 2026 (Ceny brutto) ---
+const taryfa = [
+    {max: 6, cena: 7.00}, {max: 12, cena: 8.00}, {max: 18, cena: 9.00},
+    {max: 24, cena: 11.00}, {max: 30, cena: 12.00}, {max: 40, cena: 14.00},
+    {max: 50, cena: 16.00}, {max: 60, cena: 18.00}, {max: 70, cena: 20.00},
+    {max: 80, cena: 22.00}, {max: 90, cena: 24.00}, {max: 100, cena: 26.00},
+    {max: 120, cena: 30.00}, {max: 140, cena: 32.00}, {max: 160, cena: 34.00}
+];
+
+// --- FUNKCJA NORMALIZACJI TEKSTU (Dla błędów) ---
+// Usuwa polskie znaki, spacje, zamienia u->ó itp.
+const normalizeText = (text) => {
+    if (!text) return "";
+    return text.toLowerCase()
+        .replace(/ą/g, 'a').replace(/ć/g, 'c').replace(/ę/g, 'e')
+        .replace(/ł/g, 'l').replace(/ń/g, 'n').replace(/ó/g, 'o')
+        .replace(/ś/g, 's').replace(/ź/g, 'z').replace(/ż/g, 'z')
+        .replace(/u/g, 'o') // traktujemy 'u' jak 'ó' dla błędów ort.
+        .replace(/\s+/g, '') // usuwamy spacje
+        .trim();
 };
 
-// 1. POBIERANIE STACJI Z FIREBASE
-onValue(stationsRef, (snapshot) => {
-    if (snapshot.exists()) {
-        stationsData = snapshot.val();
-    } else {
-        stationsData = defaultStations;
-        set(stationsRef, defaultStations); // Inicjalizacja pierwszej bazy
+// Funkcja szukająca najlepszego dopasowania stacji
+const findBestStation = (input) => {
+    const normalizedInput = normalizeText(input);
+    if (!normalizedInput) return null;
+
+    let bestMatch = null;
+    let highestScore = 0;
+
+    for (let key in stations) {
+        const normalizedKey = normalizeText(key);
+        
+        // 1. Dokładne dopasowanie po normalizacji
+        if (normalizedKey === normalizedInput) return key;
+
+        // 2. Prosty algorytm podobieństwa (czy jeden zawiera drugi)
+        if (normalizedKey.includes(normalizedInput) || normalizedInput.includes(normalizedKey)) {
+            return key; 
+        }
     }
-    updateDatalist();
+    return null;
+};
+
+// --- SYNCHRONIZACJA Z BAZĄ ---
+
+onValue(stationsRef, (s) => {
+    stations = s.exists() ? s.val() : {
+        "gdańsk główny": { km: 0, x: 200, y: 350, parent: null },
+        "tczew": { km: 32, x: 200, y: 550, parent: "gdańsk główny" }
+    };
+    renderDataList();
 });
 
-// 2. POBIERANIE HISTORII I ZYSKU
-onValue(statsRef, (snapshot) => {
-    earnedSoFar = snapshot.val() || 0;
-    updateProgressUI();
+onValue(statsRef, (s) => {
+    earnedSoFar = s.val() || 0;
+    updateUI();
 });
 
-onValue(tripsRef, (snapshot) => {
+onValue(tripsRef, (s) => {
+    trips = [];
     const list = document.getElementById('history-list');
     list.innerHTML = "";
-    tripsData = [];
-
-    if (snapshot.exists()) {
-        snapshot.forEach((childSnapshot) => {
-            const trip = childSnapshot.val();
-            tripsData.push(trip);
-            
-            const div = document.createElement('div');
-            div.className = 'history-item';
-            div.innerHTML = `
-                <div>
-                    <strong>${trip.od.toUpperCase()} ➔ ${trip.do.toUpperCase()}</strong><br>
-                    <small style="opacity:0.7;">Pociąg: ${trip.nr} | Zniżka: ${trip.ulga}%</small>
+    if(s.exists()){
+        s.forEach(child => {
+            const t = child.val();
+            trips.push(t);
+            list.innerHTML = `
+                <div class="history-item">
+                    <span><b>${t.od.toUpperCase()} ➔ ${t.do}</b><br>
+                    <small>${t.km} km | Ulga ${t.ulga}% | ${t.data || ''}</small></span>
+                    <span style="color:#4ade80; font-weight:bold;">+${parseFloat(t.zl).toFixed(2)} zł</span>
                 </div>
-                <div style="font-weight: bold; color: #4ade80;">+${parseFloat(trip.kwota).toFixed(2)} zł</div>
-            `;
-            list.prepend(div); // Najnowsze na górze
+            ` + list.innerHTML;
         });
-    } else {
-        list.innerHTML = "<div style='opacity:0.5; text-align:center;'>Brak przejazdów w bazie</div>";
     }
 });
 
-// -- FUNKCJE UI --
-
-function updateProgressUI() {
-    const rawPercent = (earnedSoFar / ticketPrice) * 100;
-    const bar = document.getElementById('bar-fill');
-    if (bar) {
-        bar.style.width = Math.min(rawPercent, 100) + "%";
-        if (rawPercent >= 100) bar.style.background = "linear-gradient(90deg, #22c55e, #10b981)";
-    }
-    document.getElementById('percentage-label').innerText = rawPercent.toFixed(1) + "%";
-    document.getElementById('earned-val').innerText = earnedSoFar.toFixed(2) + " zł";
-}
-
-function updateDatalist() {
-    const datalist = document.getElementById('stations-list');
-    datalist.innerHTML = "";
-    for (let st in stationsData) {
-        const option = document.createElement('option');
-        // Z dużej litery dla estetyki
-        option.value = st.charAt(0).toUpperCase() + st.slice(1);
-        datalist.appendChild(option);
-    }
-}
-
-// -- TARYFA I OBLICZENIA --
-
-// Cennik z tabeli 2026
-function getBasePrice(km) {
-    if (km <= 6) return 7.00;
-    if (km <= 12) return 8.00;
-    if (km <= 18) return 9.00;
-    if (km <= 24) return 11.00;
-    if (km <= 30) return 12.00;
-    if (km <= 40) return 14.00;
-    if (km <= 50) return 16.00;
-    if (km <= 60) return 18.00;
-    if (km <= 70) return 20.00;
-    return 22.00;
-}
+// --- OBSŁUGA PRZYCISKÓW ---
 
 window.calculatePrice = function() {
-    const from = document.getElementById('route-from').value.toLowerCase().trim();
-    const to = document.getElementById('route-to').value.toLowerCase().trim();
-    const discount = parseFloat(document.getElementById('discount-select').value);
-    const msg = document.getElementById('calc-msg');
-
-    if (!stationsData[from] || !stationsData[to]) {
-        msg.innerText = "❌ Przynajmniej jedna stacja jest nieznana. Zobacz opcję '+ Dodaj do Taryfy'.";
-        msg.style.color = "#f87171";
+    const rawFrom = document.getElementById('route-from').value;
+    const rawTo = document.getElementById('route-to').value;
+    const disc = parseFloat(document.getElementById('discount-select').value);
+    
+    const fromKey = findBestStation(rawFrom);
+    const toKey = findBestStation(rawTo);
+    
+    if(!fromKey || !toKey) {
+        document.getElementById('calc-info').innerText = "❌ Nie znaleziono stacji (sprawdź listę)";
+        document.getElementById('calc-info').style.color = "#f87171";
         return;
     }
 
-    const distance = Math.abs(stationsData[to] - stationsData[from]);
-    const basePrice = getBasePrice(distance);
+    // Wyświetlamy poprawioną nazwę w polu, żeby użytkownik widział, że system go zrozumiał
+    document.getElementById('route-from').value = fromKey.charAt(0).toUpperCase() + fromKey.slice(1);
+    document.getElementById('route-to').value = toKey.charAt(0).toUpperCase() + toKey.slice(1);
+
+    const dist = Math.abs(stations[fromKey].km - stations[toKey].km);
+    const row = taryfa.find(r => dist <= r.max) || {cena: 40.00};
+    const final = row.cena * (1 - disc);
     
-    // Obliczanie zniżki (jak w tabeli PKP)
-    let finalPrice = basePrice * (1 - discount);
-    
-    // Formatowanie
-    document.getElementById('trip-amount').value = finalPrice.toFixed(2);
-    msg.innerText = `Dystans: ~${distance} km. Cena brutto: ${finalPrice.toFixed(2)} zł`;
-    msg.style.color = "#4ade80";
+    document.getElementById('trip-amount').value = final.toFixed(2);
+    document.getElementById('calc-info').innerText = `✅ Trasę rozpoznano: ${dist} km. Cena bazowa: ${row.cena.toFixed(2)} zł`;
+    document.getElementById('calc-info').style.color = "#4ade80";
 };
 
-// -- DODAWANIE DO BAZY --
+window.addNewTrip = function() {
+    const od = document.getElementById('route-from').value;
+    const d = document.getElementById('route-to').value;
+    const zl = parseFloat(document.getElementById('trip-amount').value);
+    const discProc = (parseFloat(document.getElementById('discount-select').value) * 100).toFixed(0);
+    
+    if(!od || !d || isNaN(zl)) return alert("Najpierw oblicz cenę!");
 
-window.addNewTripFull = function() {
-    const from = document.getElementById('route-from').value.trim();
-    const to = document.getElementById('route-to').value.trim();
-    const nr = document.getElementById('train-nr').value.trim() || "Regio/SKM";
-    const kwota = parseFloat(document.getElementById('trip-amount').value);
-    const ulgaRaw = document.getElementById('discount-select').value;
-    const ulgaProc = (parseFloat(ulgaRaw) * 100).toFixed(0);
+    const fromKey = findBestStation(od);
+    const toKey = findBestStation(d);
+    const dist = Math.abs(stations[fromKey].km - stations[toKey].km);
 
-    if (!from || !to || isNaN(kwota)) {
-        alert("Wypełnij pola OD, DO oraz oblicz Kwotę!");
-        return;
-    }
-
-    // Dodajemy przejazd do kolekcji w Firebase
     const newTrip = {
-        od: from.toLowerCase(),
-        do: to.toLowerCase(),
-        nr: nr,
-        kwota: kwota,
-        ulga: ulgaProc,
-        data: new Date().toISOString()
+        od: fromKey,
+        do: toKey,
+        zl: zl,
+        km: dist,
+        ulga: discProc,
+        data: new Date().toLocaleDateString('pl-PL')
     };
 
     push(tripsRef, newTrip).then(() => {
-        // Aktualizujemy łączną sumę
-        set(statsRef, earnedSoFar + kwota);
-        
-        // Czyszczenie
+        set(statsRef, earnedSoFar + zl);
+        // Czyścimy formularz
         document.getElementById('route-from').value = "";
         document.getElementById('route-to').value = "";
         document.getElementById('trip-amount').value = "";
-        document.getElementById('calc-msg').innerText = "✅ Przejazd zapisany w chmurze!";
+        document.getElementById('calc-info').innerText = "Zapisano pomyślnie!";
     });
 };
 
-window.promptAddStation = function() {
-    const name = prompt("Podaj nazwę nowej stacji (np. Malbork):");
-    if (!name) return;
-    const km = prompt(`Podaj odległość stacji ${name} od 'punktu zero' (np. od Tczewa w km). Zobacz na mapę lub wpisz przybliżoną:`);
-    if (km && !isNaN(km)) {
-        const newStations = { ...stationsData };
-        newStations[name.toLowerCase()] = parseInt(km);
-        set(stationsRef, newStations).then(() => alert(`Stacja ${name} dodana do wspólnej bazy!`));
-    }
-};
+// --- MAPA I EDYTOR SIECI ---
 
-// -- MAPA (HEATMAPA LINII) --
+window.saveNewStation = function() {
+    const name = document.getElementById('new-st-name').value.toLowerCase().trim();
+    const km = parseInt(document.getElementById('new-st-km').value);
+    const parent = document.getElementById('new-st-parent').value.toLowerCase().trim();
+    const x = parseInt(document.getElementById('new-st-x').value);
+    const y = parseInt(document.getElementById('new-st-y').value);
 
-window.openMap = function() {
-    document.getElementById('map-modal').classList.add('active');
-    drawMap();
-};
-
-window.closeMap = function() {
-    document.getElementById('map-modal').classList.remove('active');
-};
-
-function drawMap() {
-    const svg = document.getElementById('svg-map');
-    svg.innerHTML = ""; // Czyść
-
-    // Wyznaczamy główne punkty na uproszczonej osi Y
-    const mapNodes = [
-        { id: "tczew", name: "Tczew", y: 450, x: 100 },
-        { id: "gdańsk główny", name: "Gdańsk", y: 350, x: 100 },
-        { id: "sopot", name: "Sopot", y: 250, x: 100 },
-        { id: "gdynia główna", name: "Gdynia", y: 150, x: 100 },
-        { id: "wejherowo", name: "Wejherowo", y: 50, x: 100 }
-    ];
-
-    // Budujemy liczniki połączeń
-    const segments = {
-        "tczew-gdańsk główny": 0,
-        "gdańsk główny-sopot": 0,
-        "sopot-gdynia główna": 0,
-        "gdynia główna-wejherowo": 0
+    if(!name || isNaN(km) || isNaN(x) || isNaN(y)) return alert("Wypełnij dane punktu!");
+    
+    stations[name] = { 
+        km: km, 
+        x: x, 
+        y: y, 
+        parent: parent || null 
     };
 
-    // Uproszczona analiza tras (czy stacja A i B zawierają się w segmencie)
-    tripsData.forEach(trip => {
-        // Dla uproszczenia, sprawdzamy tylko czy stacje się zgadzają z węzłami (wymagałoby to skomplikowanego routera dla każdej mniejszej stacji, więc mapujemy po nazwach)
-        const trasa = `${trip.od}-${trip.do}`;
-        const trasaOdwrotna = `${trip.do}-${trip.od}`;
-        
-        for (let key in segments) {
-            if (key === trasa || key === trasaOdwrotna) {
-                segments[key]++;
-            }
-        }
+    set(stationsRef, stations).then(() => {
+        alert(`Stacja ${name} dodana do systemu.`);
+        renderMap();
     });
+};
 
-    // Rysowanie Linii (Krawędzi)
-    for (let i = 0; i < mapNodes.length - 1; i++) {
-        const n1 = mapNodes[i];
-        const n2 = mapNodes[i+1];
-        const key = `${n1.id}-${n2.id}`;
-        let count = segments[key] || 0;
+function renderMap() {
+    const svg = document.getElementById('svg-map');
+    if(!svg) return;
+    svg.innerHTML = "";
+    
+    // 1. Rysowanie linii (połączeń)
+    for(let key in stations) {
+        const s = stations[key];
+        if(s.parent && stations[s.parent]) {
+            const p = stations[s.parent];
+            
+            // Liczenie natężenia na tym konkretnym odcinku
+            const count = trips.filter(t => 
+                (t.od === key && t.do === s.parent) || (t.do === key && t.od === s.parent)
+            ).length;
 
-        // Dobór koloru legendy
-        let color = "#64748b"; // 0 - szary
-        if (count > 0 && count < 5) color = "#f59e0b"; // 1-4 pomarańcz-żółty
-        else if (count >= 5 && count < 20) color = "#ea580c"; // 5-19 pomarańcz-czerwony
-        else if (count >= 20) color = "#dc2626"; // 20+ czerwony
+            let color = "#334155"; // Domyślny szary
+            let width = 3;
 
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        line.setAttribute("x1", n1.x);
-        line.setAttribute("y1", n1.y);
-        line.setAttribute("x2", n2.x);
-        line.setAttribute("y2", n2.y);
-        line.setAttribute("stroke", color);
-        line.setAttribute("stroke-width", "8");
-        line.setAttribute("stroke-linecap", "round");
-        svg.appendChild(line);
+            if(count > 0) { color = "#f97316"; width = 4; }
+            if(count >= 5) { color = "#ef4444"; width = 6; }
+            if(count >= 20) { color = "#7f1d1d"; width = 10; }
+
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute("x1", s.x); line.setAttribute("y1", s.y);
+            line.setAttribute("x2", p.x); line.setAttribute("y2", p.y);
+            line.setAttribute("stroke", color);
+            line.setAttribute("stroke-width", width);
+            line.setAttribute("stroke-linecap", "round");
+            svg.appendChild(line);
+        }
     }
 
-    // Rysowanie Węzłów (Kółka)
-    mapNodes.forEach(node => {
+    // 2. Rysowanie punktów i nazw
+    for(let key in stations) {
+        const s = stations[key];
+        
         const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        circle.setAttribute("cx", node.x);
-        circle.setAttribute("cy", node.y);
-        circle.setAttribute("r", "6");
-        circle.setAttribute("fill", "white");
+        circle.setAttribute("cx", s.x); circle.setAttribute("cy", s.y);
+        circle.setAttribute("r", "5");
+        circle.setAttribute("fill", "#fff");
         svg.appendChild(circle);
 
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        text.setAttribute("x", node.x + 15);
-        text.setAttribute("y", node.y + 5);
-        text.setAttribute("fill", "white");
-        text.setAttribute("font-family", "sans-serif");
-        text.setAttribute("font-size", "14");
-        text.textContent = node.name;
+        text.setAttribute("x", s.x + 10);
+        text.setAttribute("y", s.y + 5);
+        text.setAttribute("fill", "#cbd5e1");
+        text.setAttribute("font-size", "11px");
+        text.textContent = `${key.charAt(0).toUpperCase() + key.slice(1)} (${s.km}km)`;
         svg.appendChild(text);
+    }
+}
+
+// --- POMOCNICZE UI ---
+
+function updateUI() {
+    const goal = 150;
+    const progress = (earnedSoFar / goal) * 100;
+    const bar = document.getElementById('bar-fill');
+    if(bar) {
+        bar.style.width = Math.min(progress, 100) + "%";
+        if(progress >= 100) bar.style.background = "#22c55e";
+    }
+    document.getElementById('percentage-label').innerText = progress.toFixed(1) + "%";
+    document.getElementById('earned-val').innerText = earnedSoFar.toFixed(2) + " zł";
+}
+
+function renderDataList() {
+    const dl = document.getElementById('stations-list');
+    if(!dl) return;
+    dl.innerHTML = "";
+    Object.keys(stations).forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k.charAt(0).toUpperCase() + k.slice(1);
+        dl.appendChild(opt);
     });
 }
+
+window.openMap = () => { 
+    document.getElementById('map-modal').classList.add('active'); 
+    setTimeout(renderMap, 100); // Mały delay na renderowanie SVG
+};
+window.closeMap = () => document.getElementById('map-modal').classList.remove('active');
+
+window.openStationList = () => {
+    const grid = document.getElementById('full-station-grid');
+    grid.innerHTML = "";
+    Object.keys(stations).sort().forEach(k => {
+        grid.innerHTML += `
+            <div style="background:rgba(255,255,255,0.05); padding:10px; border-radius:8px; border-bottom: 2px solid #6366f1;">
+                <b style="color:#fff;">${k.toUpperCase()}</b><br>
+                <small style="color:#94a3b8;">${stations[k].km} km od Punktu 0</small>
+            </div>`;
+    });
+    document.getElementById('list-modal').classList.add('active');
+};
+window.closeStationList = () => document.getElementById('list-modal').classList.remove('active');
