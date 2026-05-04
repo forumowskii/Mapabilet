@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RegioPomorskie Ultimate PRO v10.2</title>
+    <title>RegioPomorskie PRO</title>
     
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
     <link rel="stylesheet" href="https://unpkg.com/photoswipe@5.4.3/dist/photoswipe.css">
 
     <style>
@@ -14,22 +15,17 @@
             --success: #22c55e;
             --danger: #ef4444;
             --warning: #facc15;
-            --ic-blue: #3b82f6;
-            --skm-yellow: #fde047;
-            --regio-red: #ef4444;
-            --bg-dark: #05070a;
+            --bg-dark: #0b0f1a;
             --glass: rgba(30, 41, 59, 0.7);
-            --border: rgba(255, 255, 255, 0.1);
         }
 
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
         body {
-            background: radial-gradient(circle at top right, #1e1b4b, #0f172a);
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #4c1d95 100%);
             background-attachment: fixed;
             color: #f8fafc;
             font-family: 'Inter', sans-serif;
             margin: 0;
+            padding: 20px;
             display: flex;
             justify-content: center;
             min-height: 100vh;
@@ -42,178 +38,126 @@
             display: flex;
             flex-direction: column;
             gap: 15px;
-            padding: 85px 20px 30px 20px;
+            padding-top: 60px; /* Miejsce na hamburgera */
         }
 
-        /* MENU BOCZNE */
+        /* --- MENU BOCZNE (HAMBURGER) --- */
         .menu-trigger {
             position: fixed;
             top: 20px;
             left: 20px;
             z-index: 1100;
-            font-size: 26px;
+            font-size: 28px;
             cursor: pointer;
             background: var(--glass);
-            width: 50px;
-            height: 50px;
+            width: 45px;
+            height: 45px;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 15px;
-            border: 1px solid var(--border);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
             backdrop-filter: blur(10px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.4);
         }
 
         .side-menu {
             position: fixed;
             top: 0;
-            left: -320px;
+            left: -300px;
             width: 280px;
             height: 100%;
             background: #0f172a;
             z-index: 1200;
             transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             padding: 40px 20px;
+            box-sizing: border-box;
             border-right: 1px solid var(--accent);
-            box-shadow: 20px 0 40px rgba(0,0,0,0.6);
+            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
         }
 
-        .side-menu.active { left: 0; }
+        .side-menu.active {
+            left: 0;
+        }
 
         .menu-overlay {
             position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
             background: rgba(0,0,0,0.7);
             z-index: 1150;
             display: none;
-            backdrop-filter: blur(5px);
         }
 
-        .menu-overlay.active { display: block; }
+        .menu-overlay.active {
+            display: block;
+        }
 
         .menu-item {
             padding: 16px;
             margin-bottom: 12px;
-            border-radius: 16px;
+            border-radius: 14px;
             background: rgba(255,255,255,0.05);
             cursor: pointer;
-            font-weight: 700;
+            font-weight: 600;
+            transition: 0.2s;
             display: flex;
             align-items: center;
-            gap: 15px;
-            transition: 0.2s;
+            gap: 12px;
             border: 1px solid transparent;
         }
 
         .menu-item:hover {
             background: rgba(129, 140, 248, 0.2);
             border-color: var(--accent);
-            transform: translateX(8px);
         }
 
-        /* KARTY */
+        /* --- KARTY I INTERFEJS --- */
         .card {
             background: var(--glass);
             padding: 20px;
-            border-radius: 28px;
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            border: 1px solid var(--border);
-            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+            border-radius: 24px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         #earned-val {
-            font-size: 54px;
+            font-size: 48px;
             font-weight: 900;
             text-align: center;
-            background: linear-gradient(to bottom, #ffffff, #94a3b8);
+            background: linear-gradient(to bottom, #ffffff, #cbd5e1);
             -webkit-background-clip: text;
             background-clip: text;
             color: transparent;
+            display: block;
             margin: 5px 0;
-            letter-spacing: -3px;
         }
 
         .progress-container {
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.4);
             height: 14px;
             border-radius: 20px;
             overflow: hidden;
-            margin: 12px 0;
+            margin: 10px 0;
         }
 
         #bar-fill {
             background: linear-gradient(90deg, #6366f1, #a855f7);
-            height: 100%; width: 0%;
-            transition: width 1.2s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 0 15px var(--accent);
+            height: 100%;
+            width: 0%;
+            transition: width 1s ease;
         }
-
-        /* PRZEWOŹNICY */
-        .type-switcher {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 5px;
-        }
-
-        .type-btn {
-            padding: 12px;
-            border-radius: 14px;
-            font-weight: 900;
-            font-size: 11px;
-            cursor: pointer;
-            border: 2px solid transparent;
-            opacity: 0.4;
-            transition: 0.3s;
-            text-align: center;
-            color: white;
-        }
-
-        .type-btn.active { opacity: 1; transform: translateY(-2px); }
-        .type-regio { background: var(--regio-red); border-color: #ff7676; }
-        .type-ic { background: var(--ic-blue); border-color: #70aaff; }
-        .type-skm { background: var(--skm-yellow); color: #000; border-color: #fffb00; }
-
-        /* FORMULARZE */
-        input, select, button {
-            width: 100%;
-            padding: 15px;
-            border-radius: 14px;
-            border: 1px solid var(--border);
-            background: rgba(15, 23, 42, 0.8);
-            color: #fff;
-            font-size: 14px;
-            outline: none;
-        }
-
-        input:focus { border-color: var(--accent); background: rgba(30, 41, 59, 1); }
-
-        .primary-btn { background: var(--accent); font-weight: 800; border: none; cursor: pointer; }
-        .success-btn { background: var(--success); font-weight: 900; border: none; cursor: pointer; }
-
-        /* MODALE */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: #05070a;
-            z-index: 1300;
-            flex-direction: column;
-            padding: 20px;
-        }
-
-        .modal.active { display: flex; }
 
         .map-wrapper {
             position: relative;
             width: 100%;
             height: 60vh;
             background: var(--bg-dark);
-            border-radius: 26px;
+            border-radius: 20px;
             overflow: hidden;
-            border: 1px solid var(--border);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         svg { width: 100%; height: 100%; touch-action: none; }
@@ -221,24 +165,87 @@
         .history-item {
             background: rgba(255, 255, 255, 0.06);
             padding: 16px;
-            border-radius: 22px;
-            border-left: 5px solid var(--accent);
+            border-radius: 18px;
+            border-left: 4px solid var(--accent);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(15, 23, 42, 0.8);
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: var(--accent);
+            font-weight: 800;
+            border: none;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        /* --- MODALE --- */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0f172a;
+            z-index: 1300;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        /* Galeria miniatur */
+        .schemat-thumb {
+            width: 100%;
+            border-radius: 15px;
+            margin-bottom: 15px;
+            border: 2px solid rgba(255,255,255,0.1);
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .schemat-thumb:hover {
+            border-color: var(--accent);
+            transform: scale(1.02);
         }
 
         #coord-info {
             position: absolute;
             background: var(--warning);
             color: #000;
-            padding: 4px 12px;
-            border-radius: 8px;
+            padding: 2px 8px;
+            border-radius: 5px;
             font-size: 12px;
-            font-weight: 900;
+            font-weight: bold;
+            pointer-events: none;
             display: none;
-            z-index: 4000;
+            z-index: 3000;
         }
     </style>
 </head>
@@ -250,22 +257,24 @@
     <div class="menu-overlay" id="menu-overlay" onclick="window.toggleMenu()"></div>
     
     <nav class="side-menu" id="side-menu">
-        <h2 style="font-weight: 900; color: var(--accent); margin-bottom: 30px;">MENU</h2>
-        <div class="menu-item" onclick="window.closeMenu();">🏠 Pulpit Główny</div>
-        <div class="menu-item" onclick="window.openGallery();">🖼️ Schematy Map</div>
-        <div class="menu-item" onclick="window.openSettings();">⚙️ Baza Stacji</div>
-        <div style="position: absolute; bottom: 20px; opacity: 0.3; font-size: 10px;">v10.2 PRO Build</div>
+        <h2 style="margin-bottom: 30px; font-weight: 800; color: var(--accent);">REGIO MENU</h2>
+        <div class="menu-item" onclick="window.closeMenu();">🏠 Pulpit</div>
+        <div class="menu-item" onclick="window.openGallery();">🗺️ Schematy Tras</div>
+        <div class="menu-item" onclick="window.openSettings();">⚙️ Ustawienia Bazy</div>
+        <div style="position: absolute; bottom: 20px; left: 20px; font-size: 11px; opacity: 0.3;">
+            RegioPomorskie v9.0 Build 2026
+        </div>
     </nav>
 
     <div class="app-container">
-        <header style="display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="margin:0; font-weight: 900; padding-left: 55px;">RegioPomorskie</h2>
-            <div style="background: var(--success); padding: 5px 12px; border-radius: 20px; font-size: 10px; font-weight: 900;">ONLINE</div>
+        <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <h2 style="margin:0; font-weight: 800; padding-left: 50px; letter-spacing: -1px;">RegioPomorskie</h2>
+            <div style="background: var(--success); padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);">ONLINE</div>
         </header>
 
         <section class="card">
-            <div style="display: flex; justify-content: space-between; font-size: 11px; opacity: 0.5; font-weight: 800;">
-                <span>CEL: 150 ZŁ</span>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; opacity: 0.6; font-weight: 600;">
+                <span>Zysk (Cel: 150.00 zł)</span>
                 <span id="percentage-label">0%</span>
             </div>
             <div class="progress-container">
@@ -274,100 +283,122 @@
             <div id="earned-val">0.00 zł</div>
         </section>
 
-        <div class="type-switcher">
-            <div class="type-btn type-regio active" id="btn-regio" onclick="window.setType('regio')">REGIO</div>
-            <div class="type-btn type-ic" id="btn-ic" onclick="window.setType('ic')">IC</div>
-            <div class="type-btn type-skm" id="btn-skm" onclick="window.setType('skm')">SKM</div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="window.openMap()" style="background: var(--warning); color: #000; flex: 1;">🗺️ MAPA SIECI</button>
+            <button onclick="window.openHeatmap()" style="background: #4338ca; flex: 1;">🔥 NATĘŻENIE</button>
         </div>
 
         <section class="card">
             <div style="display: grid; gap: 10px;">
-                <div style="display: flex; gap: 5px;">
-                    <input type="text" id="route-from" placeholder="Z..." list="stations-list">
-                    <input type="text" id="route-to" placeholder="Do..." list="stations-list">
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="route-from" placeholder="Skąd?" list="stations-list">
+                    <input type="text" id="route-to" placeholder="Dokąd?" list="stations-list">
                 </div>
                 <datalist id="stations-list"></datalist>
 
-                <div style="display: flex; gap: 5px;">
-                    <input type="text" id="regio-num" placeholder="Nr pociągu" style="flex:2">
-                    <button onclick="window.checkStops()" style="flex:0.5; background:var(--warning); color:#000; font-weight:900">?</button>
-                </div>
-
-                <div style="display: flex; gap: 5px;">
-                    <select id="discount-select" style="flex:1.5">
-                        <option value="0.37">Uczeń (37%)</option>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="regio-num" placeholder="Nr pociągu (Regio)" style="flex: 1;">
+                    <select id="discount-select" style="flex: 1;">
+                        <option value="0.37" selected>Uczeń (37%)</option>
                         <option value="0.51">Student (51%)</option>
-                        <option value="0">Normalny</option>
+                        <option value="0">Normalny (100%)</option>
                     </select>
-                    <input type="number" id="trip-amount" placeholder="Cena zł" style="flex:1; color:var(--success); font-weight:800">
+                    <select id="network-select">
+                        <option value="skm" selected>SKM</option>
+                        <option value="kolej_plus">Kolej+</option>
+                    </select>
                 </div>
 
-                <div style="display: flex; gap: 5px;">
-                    <button onclick="window.calculatePrice()" class="primary-btn">OBLICZ</button>
-                    <button onclick="window.addNewTrip()" class="success-btn">ZAPISZ</button>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="window.calculatePrice()" style="flex: 1.2;">🧮 OBLICZ KM</button>
+                    <input type="number" id="trip-amount" placeholder="Cena zł" style="flex: 1; font-weight: bold; color: var(--success);">
                 </div>
-                <div id="stop-info" style="font-size: 10px; color: var(--accent); text-align: center; font-weight: 700;"></div>
+                <button onclick="window.addNewTrip()" style="background: var(--success); height: 50px; font-size: 16px;">✅ ZAPISZ PRZEJAZD</button>
+                <p id="calc-info" style="text-align:center; font-size:12px; color:var(--accent); margin:0; font-weight: 600;"></p>
             </div>
         </section>
 
-        <div style="display: flex; gap: 10px;">
-            <button onclick="window.openMap()" style="background:#1e293b; font-weight:700">🗺️ EDYTOR SIECI</button>
-            <button onclick="window.openHeatmap()" style="background:#1e1b4b; font-weight:700">🔥 NATĘŻENIE</button>
-        </div>
-
-        <h3 style="font-size: 12px; opacity: 0.4; margin: 10px 0 0 5px;">OSTATNIE PRZEJAZDY</h3>
+        <h3 style="font-size: 14px; opacity: 0.5; margin: 10px 0 5px 5px; letter-spacing: 1px;">📜 OSTATNIE TRASY</h3>
         <div id="history-list"></div>
     </div>
 
     <div id="map-modal" class="modal">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-            <h3 style="margin:0">🗺️ Kreator Sieci</h3>
-            <div style="display:flex; gap:5px;">
-                <button onclick="window.toggleGrid()" id="grid-btn" style="width:auto; padding:5px 10px; font-size:10px;">GRID: OFF</button>
-                <button onclick="window.closeMap()" style="background:var(--danger); width:auto; padding:5px 15px;">X</button>
+        <div class="modal-header">
+            <h3 style="margin:0">🗺️ Edytor Punktów Sieci</h3>
+            <div style="display:flex; gap:10px;">
+                <button onclick="window.toggleGrid()" id="grid-btn" style="width:auto; padding:8px 15px; background:#475569; font-size: 12px;">SIATKA: WYŁ</button>
+                <button onclick="window.closeMap()" style="width:auto; background:var(--danger); padding:8px 20px;">ZAMKNIJ</button>
             </div>
         </div>
-        <div class="map-wrapper"><svg id="svg-map" viewBox="0 0 400 600"></svg></div>
-        <div style="margin-top:10px; display:grid; grid-template-columns: 1fr 1fr; gap:5px;">
-            <input type="text" id="new-st-name" placeholder="Nazwa stacji" style="grid-column: span 2">
-            <select id="new-st-type">
-                <option value="regio">Typ: Regio</option>
-                <option value="ic">Typ: IC</option>
-                <option value="skm">Typ: SKM</option>
-            </select>
-            <input type="number" id="new-st-km" placeholder="KM">
-            <input type="number" id="new-st-x" placeholder="Poz X">
-            <input type="number" id="new-st-y" placeholder="Poz Y">
-            <input type="text" id="new-st-parent" placeholder="ID Poprzedniej" style="grid-column: span 2">
-            <button onclick="window.saveNewStation()" class="success-btn" style="grid-column: span 2">DODAJ DO BAZY</button>
+        <div class="map-wrapper">
+            <svg id="svg-map" viewBox="0 0 400 600"></svg>
+        </div>
+        <div class="card" style="margin-top:15px; background:rgba(0,0,0,0.4); padding: 15px;">
+            <div style="display:grid; gap: 8px;">
+                <input type="text" id="new-st-name" placeholder="Nazwa stacji" style="grid-column: span 3;">
+                <input type="number" id="new-st-km" placeholder="KM">
+                <input type="number" id="new-st-x" placeholder="Poz. X">
+                <input type="number" id="new-st-y" placeholder="Poz. Y">
+                <input type="text" id="new-st-parent" placeholder="Stacja nadrzędna (opcjonalnie)" style="grid-column: span 2;">
+                <button onclick="window.saveNewStation()" style="background:var(--success);">DODAJ</button>
+            </div>
         </div>
     </div>
 
     <div id="heatmap-modal" class="modal">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-            <h3 style="margin:0">🔥 Natężenie</h3>
-            <button onclick="window.closeHeatmap()" style="background:var(--danger); width:auto; padding:5px 20px;">ZAMKNIJ</button>
+        <div class="modal-header">
+            <h3 style="margin:0">🔥 Mapa Natężenia Ruchu</h3>
+            <button onclick="window.closeHeatmap()" style="width:auto; background:var(--danger); padding:8px 20px;">ZAMKNIJ</button>
         </div>
-        <div class="map-wrapper"><svg id="svg-heatmap" viewBox="0 0 400 600"></svg></div>
+
+        <div style="display:flex; gap:10px; margin-bottom: 15px;">
+            <button onclick="window.setHeatFilter('all')" style="width:auto; padding:10px 14px; background:#475569;">CAŁA SIEĆ</button>
+            <button onclick="window.setHeatFilter('skm')" style="width:auto; padding:10px 14px; background:#334155;">SKM</button>
+            <button onclick="window.setHeatFilter('kolej_plus')" style="width:auto; padding:10px 14px; background:#334155;">KOLEJ+</button>
+        </div>
+
+        <div class="map-wrapper">
+            <svg id="svg-heatmap" viewBox="0 0 400 600"></svg>
+        </div>
+
+        <div style="display: flex; justify-content: center; gap: 15px; margin-top: 20px; font-size: 11px; font-weight: 800;">
+            <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#475569; border-radius:3px;"></div> 0</div>
+            <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#facc15; border-radius:3px;"></div> 1-4</div>
+            <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#f97316; border-radius:3px;"></div> 5-19</div>
+            <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#ef4444; border-radius:3px;"></div> 20+</div>
+        </div>
     </div>
 
     <div id="gallery-modal" class="modal">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-            <h3 style="margin:0">🖼️ Schematy PNG</h3>
-            <button onclick="window.closeGallery()" style="background:var(--danger); width:auto; padding:5px 20px;">X</button>
+        <div class="modal-header">
+            <h3 style="margin:0">🖼️ Schematy i Mapy PNG</h3>
+            <button onclick="window.closeGallery()" style="width:auto; background:var(--danger); padding:8px 20px;">WSTECZ</button>
         </div>
-        <div id="gallery-list" style="overflow-y:auto; flex:1;">
-            <img src="img/schemat1.jpg" style="width:100%; border-radius:15px; margin-bottom:10px; border:1px solid var(--border);" onclick="window.fullView(0)">
+        <div id="gallery-list" style="overflow-y: auto; padding-right: 5px;">
+            <img src="img/schemat1.jpg" class="schemat-thumb" onclick="window.fullView(0)" alt="Schemat 1">
+            <img src="img/schemat2.jpg" class="schemat-thumb" onclick="window.fullView(1)" alt="Schemat 2">
+            <img src="img/schemat3.jpg" class="schemat-thumb" onclick="window.fullView(2)" alt="Schemat 3">
+
+            <div class="card" style="margin-top: 10px; background:rgba(0,0,0,0.35); padding: 12px;">
+                <div style="display:grid; gap: 8px;">
+                    <input type="text" id="new-schemat-title" placeholder="Nazwa linku (np. SKM schemat PDF)">
+                    <input type="url" id="new-schemat-url" placeholder="URL (https://...) ">
+                    <button onclick="window.addSchematLink()" style="background: var(--accent);">DODAJ LINK</button>
+                </div>
+            </div>
+
+            <div id="schemat-links" style="margin-top: 12px; display:grid; gap:10px;"></div>
+            <p style="text-align:center; opacity:0.3; font-size:11px; margin-top:20px;">Wgraj więcej zdjęć do folderu img/</p>
         </div>
     </div>
 
     <div id="settings-modal" class="modal">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+        <div class="modal-header">
             <h3 style="margin:0">⚙️ Baza Stacji</h3>
-            <button onclick="window.closeSettings()" style="background:var(--danger); width:auto; padding:5px 20px;">X</button>
+            <button onclick="window.closeSettings()" style="width:auto; background:var(--danger); padding:8px 20px;">ZAMKNIJ</button>
         </div>
-        <input type="text" id="station-search" placeholder="Szukaj stacji..." oninput="window.filterStations()">
-        <div id="full-station-grid" style="overflow-y:auto; flex:1; margin-top:10px; display:grid; gap:10px;"></div>
+        <input type="text" id="station-search" placeholder="🔍 Szukaj stacji w bazie..." oninput="window.filterStations()">
+        <div id="full-station-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; overflow-y:auto; margin-top:15px; padding-bottom:30px;"></div>
     </div>
 
     <script type="module" src="./app.js"></script>
