@@ -3,90 +3,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bilet Tracker Pro</title>
+    <title>Bilet Tracker Pro - Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* Dodatkowe style dla nowych sekcji */
+        .history-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        .history-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.8rem;
+            border-left: 3px solid #6366f1;
+        }
+        .map-container {
+            width: 100%;
+            height: 250px;
+            background: #1e293b;
+            border-radius: 12px;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+        .map-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.6;
+        }
+        .map-overlay {
+            position: absolute;
+            color: white;
+            font-weight: bold;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+    </style>
 </head>
 <body>
 
     <div class="app-container">
         <header class="app-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <div class="logo-area">
-                <span style="font-size: 1.5rem;">🎫</span>
-                <h1 style="display: inline; margin-left: 10px; font-size: 1.2rem;">Mój Bilet</h1>
+                <span style="font-size: 1.5rem;">🚆</span>
+                <h1 style="display: inline; margin-left: 10px; font-size: 1.2rem;">Licznik Kolejowy</h1>
             </div>
-            <div style="background: rgba(34, 197, 94, 0.2); color: #4ade80; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold;">
-                Online
+            <div id="connection-status" style="background: rgba(34, 197, 94, 0.2); color: #4ade80; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: bold;">
+                Chmura OK
             </div>
         </header>
 
         <section class="card progress-card">
             <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-                <span style="opacity: 0.8; font-size: 0.9rem;">Zwrot inwestycji</span>
-                <span id="percentage-label" style="color: #818cf8; font-weight: 800;">0%</span>
+                <span style="opacity: 0.8; font-size: 0.9rem;">Stopień zwrotu / Zysk</span>
+                <span id="percentage-label" style="color: #818cf8; font-weight: 800; font-size: 1.2rem;">0%</span>
             </div>
-            
-            <div class="progress-container">
-                <div id="bar-fill"></div>
-            </div>
-
+            <div class="progress-container"><div id="bar-fill"></div></div>
             <div style="display: flex; justify-content: space-between; margin-top: 15px; text-align: center;">
                 <div style="flex: 1;">
-                    <small style="display: block; opacity: 0.6; font-size: 0.7rem; text-transform: uppercase;">Zarobione</small>
-                    <p id="earned-val" style="font-size: 1.1rem; font-weight: bold; margin: 5px 0;">0 zł</p>
+                    <small style="opacity: 0.6; font-size: 0.7rem;">WYJEŻDŻONE</small>
+                    <p id="earned-val" style="font-size: 1.4rem; font-weight: 800; margin: 5px 0;">0.00 zł</p>
                 </div>
-                <div style="width: 1px; background: rgba(255,255,255,0.1); margin: 0 10px;"></div>
                 <div style="flex: 1;">
-                    <small style="display: block; opacity: 0.6; font-size: 0.7rem; text-transform: uppercase;">Koszt biletu</small>
-                    <p style="font-size: 1.1rem; font-weight: bold; margin: 5px 0;">150 zł</p>
+                    <small style="opacity: 0.6; font-size: 0.7rem;">KOSZT BILETU</small>
+                    <p style="font-size: 1.4rem; font-weight: 800; margin: 5px 0; opacity: 0.5;">150.00 zł</p>
                 </div>
             </div>
         </section>
 
-        <section class="card search-card">
-            <h3 style="margin-top: 0; font-size: 1rem;">🔍 Sprawdź zasięg stacji</h3>
+        <section class="card">
+            <h3 style="margin-top: 0; font-size: 1rem; color: #818cf8;">🔍 Sprawdź taryfę</h3>
             <div style="display: flex; gap: 10px;">
-                <input type="text" id="station-input" placeholder="Wpisz np. Gdansk..." list="stations-list" style="flex: 1;">
+                <input type="text" id="station-input" placeholder="Gdzie jedziesz?" list="stations-list" style="flex: 1;">
                 <datalist id="stations-list">
                     <option value="Gdańsk Główny">
                     <option value="Gdańsk Oliwa">
                     <option value="Sopot">
                     <option value="Gdynia Główna">
                     <option value="Wejherowo">
-                    <option value="Rumia">
-                    <option value="Reda">
                 </datalist>
-                <button class="btn-check" onclick="window.checkStation()" style="width: auto; padding: 0 20px;">OK</button>
+                <button class="btn-check" onclick="window.checkStation()" style="width: auto; padding: 0 20px;">Wylicz</button>
             </div>
-            <div id="result-msg" class="status-msg" style="margin-top: 10px; padding: 10px; border-radius: 8px; font-size: 0.85rem; text-align: center; min-height: 20px;">
-                Czekam na nazwę stacji...
+            <div id="result-msg" style="margin-top: 10px; font-size: 0.8rem; text-align: center; color: #aaa;"></div>
+        </section>
+
+        <section class="card">
+            <h3 style="margin-top: 0; font-size: 1rem; color: #facc15;">🗺️ Mapa przejazdów</h3>
+            <div class="map-container">
+                <img src="https://images.unsplash.com/photo-1524661135-423995f22d0b?auto=format&fit=crop&q=80&w=1000" class="map-img" alt="Mapa">
+                <div class="map-overlay">📍 Wybrzeże / Pomorskie</div>
             </div>
+            <p style="font-size: 0.7rem; opacity: 0.5; margin-top: 5px; text-align: center;">Mapa Twoich najczęstszych tras kolejowych</p>
         </section>
 
         <section class="card action-card">
-            <h3 style="margin-top: 0; font-size: 1rem;">🚀 Akceptuj "Wóz" (Dodaj)</h3>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                <button class="btn-add" onclick="window.addNewTrip(10)" style="background: linear-gradient(135deg, #6366f1, #4f46e5); color: white; padding: 15px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer;">
-                    <span style="display: block; font-size: 1.2rem;">⚡</span>
-                    +10 PLN
-                </button>
-                <button class="btn-add" onclick="window.addNewTrip(15)" style="background: linear-gradient(135deg, #334155, #1e293b); color: white; padding: 15px; border-radius: 12px; border: none; font-weight: bold; cursor: pointer;">
-                    <span style="display: block; font-size: 1.2rem;">🛣️</span>
-                    +15 PLN
-                </button>
+            <h3 style="margin-top: 0; font-size: 1rem; color: #22c55e;">📝 Rejestracja Przejazdu</h3>
+            <div style="display: grid; gap: 10px;">
+                <input type="text" id="train-nr" placeholder="Nr Pociągu">
+                <input type="text" id="route-name" placeholder="Trasa (np. Gdańsk - Gdynia)">
+                <input type="number" id="trip-amount" step="0.10" placeholder="Kwota (PLN)" style="font-size: 1.1rem;">
+                <button class="btn-add" onclick="window.addNewTripFull()" style="background: #22c55e; height: 50px;">ZATWIERDŹ I DODAJ</button>
             </div>
         </section>
 
-        <section class="card info-card" style="margin-bottom: 0;">
-            <h3 style="margin-top: 0; font-size: 1rem;">📍 Twoje kierunki</h3>
-            <div style="font-size: 0.85rem; opacity: 0.9;">
-                <div style="margin-bottom: 8px;">🏠 <strong>Dom -> Praca:</strong> SKM (10 zł)</div>
-                <div style="margin-bottom: 8px;">🎓 <strong>Uczelnia:</strong> Regio (15 zł)</div>
+        <section class="card">
+            <h3 style="margin-top: 0; font-size: 1rem; color: #6366f1;">📜 Historia przejazdów</h3>
+            <div id="history-list" class="history-list">
+                <div class="history-item">
+                    <span>Oczekiwanie na dane...</span>
+                </div>
             </div>
         </section>
 
-        <footer style="text-align: center; margin-top: 20px; font-size: 0.7rem; opacity: 0.5;">
-            v1.0 • Połączono z Firebase Realtime DB
+        <footer style="text-align: center; margin-top: 20px; font-size: 0.7rem; opacity: 0.4; padding-bottom: 20px;">
+            Bilet Tracker Pro v3.0 • Realtime Database
         </footer>
     </div>
 
