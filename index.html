@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mój Bilet Miesięczny</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <h1>🎫 Licznik Biletu</h1>
+        
+        <div class="stats">
+            <p>Postęp zwrotu biletów: <span id="progress-text">0%</span></p>
+            <div class="progress-bar">
+                <div id="bar-fill" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <div class="search-section">
+            <input type="text" id="station-input" placeholder="Wpisz stację (np. Gdansk)..." list="stations-list">
+            <datalist id="stations-list">
+                <option value="Gdansk">
+                <option value="Gdynia">
+                <option value="Sopot">
+                <option value="Wejherowo">
+            </datalist>
+            <button onclick="checkStation()">Sprawdź & Dodaj</button>
+            <p id="result-msg"></p>
+        </div>
+
+        <div class="info-card">
+            <h3>📍 Ważne kierunki</h3>
+            <ul>
+                <li>Praca: 20 zł</li>
+                <li>Uczelnia: 15 zł</li>
+            </ul>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
