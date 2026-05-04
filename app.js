@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-// --- KONFIGURACJA FIREBASE ---
 const firebaseConfig = {
     apiKey: "AIzaSyCqWomuAPeflvawobPGRlNIqE-7H1cU4bs",
     authDomain: "biliet.firebaseapp.com",
@@ -15,7 +14,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// Referencje do bazy
+// Refs
 const statsRef = ref(db, 'stats/oszczednosci');
 const tripsRef = ref(db, 'stats/przejazdy');
 const stationsRef = ref(db, 'stats/stacje_siec');
@@ -23,6 +22,11 @@ const stationsRef = ref(db, 'stats/stacje_siec');
 let earnedSoFar = 0;
 let stations = {};
 let tripsData = [];
+
+// Mapa state
+let viewbox = { x: 0, y: 0, w: 400, h: 600 };
+let isDragging = false;
+let lastPos = { x: 0, y: 0 };
 
 // --- TARYFA POMORSKA 2026 ---
 const taryfa = [
@@ -33,275 +37,238 @@ const taryfa = [
     {max: 120, cena: 30.00}, {max: 140, cena: 32.00}, {max: 160, cena: 34.00}
 ];
 
-// --- SYSTEM ROZPOZNAWANIA BŁĘDÓW (Fuzzy Matching) ---
-const normalize = (text) => {
-    if (!text) return "";
-    return text.toLowerCase()
-        .replace(/ą/g, 'a').replace(/ć/g, 'c').replace(/ę/g, 'e')
-        .replace(/ł/g, 'l').replace(/ń/g, 'n').replace(/ó/g, 'o')
-        .replace(/ś/g, 's').replace(/ź/g, 'z').replace(/ż/g, 'z')
-        .replace(/u/g, 'o') // u traktujemy jak ó dla błędów ortograficznych
-        .replace(/\s+/g, '') // usuwamy spacje
-        .trim();
+// --- NORMALIZACJA (Fuzzy Search) ---
+const normalize = (t) => {
+    if(!t) return "";
+    return t.toLowerCase().trim()
+        .replace(/[ąàáâãäå]/g,"a").replace(/[ćç]/g,"c").replace(/[ęèéêë]/g,"e")
+        .replace(/[ł]/g,"l").replace(/[ńñ]/g,"n").replace(/[óòôõöu]/g,"o")
+        .replace(/[ś]/g,"s").replace(/[źż]/g,"z").replace(/\s+/g,"");
 };
 
-const findBestStation = (input) => {
+const findBestMatch = (input) => {
     const ni = normalize(input);
-    if (!ni) return null;
-    
-    // Szukamy stacji, której znormalizowana nazwa pasuje do wpisanej
-    return Object.keys(stations).find(key => {
-        const nk = normalize(key);
+    if(!ni) return null;
+    return Object.keys(stations).find(k => {
+        const nk = normalize(k);
         return nk === ni || nk.includes(ni) || ni.includes(nk);
     });
 };
 
-// --- SYNCHRONIZACJA DANYCH ---
-
-onValue(stationsRef, (snapshot) => {
-    if (snapshot.exists()) {
-        stations = snapshot.val();
+// --- SYNCHRONIZACJA Z BAZĄ ---
+onValue(stationsRef, (s) => {
+    if(s.exists()) {
+        stations = s.val();
         renderDataList();
     }
 });
 
-onValue(statsRef, (snapshot) => {
-    earnedSoFar = snapshot.val() || 0;
+onValue(statsRef, (s) => {
+    earnedSoFar = s.val() || 0;
     updateUI();
 });
 
-onValue(tripsRef, (snapshot) => {
+onValue(tripsRef, (s) => {
     const list = document.getElementById('history-list');
     list.innerHTML = "";
     tripsData = [];
-    
-    if (snapshot.exists()) {
-        snapshot.forEach(child => {
-            const data = child.val();
+    if(s.exists()){
+        s.forEach(child => {
+            const t = child.val();
             const id = child.key;
-            tripsData.push({ ...data, id });
-            createSwipeItem(list, data, id);
+            tripsData.push({...t, id});
+            addSwipeItem(list, t, id);
         });
-    } else {
-        list.innerHTML = "<p style='text-align:center; opacity:0.5;'>Brak przejazdów w historii</p>";
     }
 });
 
-// --- LOGIKA SWIPE (Przesunięcie by usunąć) ---
-function createSwipeItem(container, data, id) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'swipe-container';
-    
-    wrapper.innerHTML = `
-        <div class="delete-btn" onclick="window.confirmDelete('${id}', ${data.zl})">🗑️</div>
+// --- OBSŁUGA SWIPE ---
+function addSwipeItem(container, data, id) {
+    const wrap = document.createElement('div');
+    wrap.className = 'swipe-container';
+    wrap.innerHTML = `
+        <div class="delete-btn" onclick="window.requestDelete('${id}', ${data.zl})">🗑️</div>
         <div class="history-item" id="item-${id}">
-            <div style="display:flex; flex-direction:column;">
-                <span style="font-weight:800; font-size:14px;">${data.od.toUpperCase()} ➔ ${data.do.toUpperCase()}</span>
-                <small style="opacity:0.6; font-size:11px;">${data.km} km | ${data.data || 'Brak daty'}</small>
+            <div>
+                <b style="color:#fff">${data.od.toUpperCase()} ➔ ${data.do.toUpperCase()}</b><br>
+                <small style="opacity:0.6">${data.km} km | ${data.data || ''}</small>
             </div>
-            <div style="text-align:right;">
-                <span style="color:#4ade80; font-weight:800;">+${parseFloat(data.zl).toFixed(2)}</span>
+            <div style="text-align:right">
+                <span style="color:#4ade80; font-weight:800">+${parseFloat(data.zl).toFixed(2)} zł</span>
             </div>
         </div>
     `;
 
-    const item = wrapper.querySelector('.history-item');
+    const item = wrap.querySelector('.history-item');
     let startX = 0;
-    let currentX = 0;
 
-    // Obsługa dotyku
     item.addEventListener('touchstart', e => {
         startX = e.touches[0].clientX;
         item.style.transition = 'none';
-    });
+    }, {passive: true});
 
     item.addEventListener('touchmove', e => {
-        currentX = e.touches[0].clientX - startX;
-        // Reagujemy tylko na przesunięcie w lewo (by odsłonić śmietnik po prawej)
-        if (currentX < 0) {
-            const move = Math.max(currentX, -80);
-            item.style.transform = `translateX(${move}px)`;
-        }
-    });
+        let diff = e.touches[0].clientX - startX;
+        if(diff < 0) item.style.transform = `translateX(${Math.max(diff, -80)}px)`;
+    }, {passive: true});
 
     item.addEventListener('touchend', e => {
         item.style.transition = 'transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28)';
-        if (currentX < -40) {
-            item.style.transform = 'translateX(-80px)';
-        } else {
-            item.style.transform = 'translateX(0)';
-        }
+        let diff = e.changedTouches[0].clientX - startX;
+        item.style.transform = diff < -40 ? 'translateX(-80px)' : 'translateX(0)';
     });
 
-    container.prepend(wrapper);
+    container.prepend(wrap);
 }
 
-window.confirmDelete = (id, amount) => {
-    if (confirm("Czy na pewno chcesz usunąć ten wpis z historii?")) {
+window.requestDelete = (id, amount) => {
+    if(confirm("Usunąć ten przejazd?")) {
         remove(ref(db, `stats/przejazdy/${id}`)).then(() => {
             set(statsRef, earnedSoFar - amount);
         });
     } else {
-        const item = document.getElementById(`item-${id}`);
-        if(item) item.style.transform = 'translateX(0)';
+        document.getElementById(`item-${id}`).style.transform = 'translateX(0)';
     }
 };
 
-// --- OBSŁUGA FORMULARZA ---
+// --- OBLICZENIA (TYLKO KM) ---
+window.calculatePrice = () => {
+    const fName = findBestMatch(document.getElementById('route-from').value);
+    const tName = findBestMatch(document.getElementById('route-to').value);
+    const disc = parseFloat(document.getElementById('discount-select').value);
 
-window.calculatePrice = function() {
-    const rawFrom = document.getElementById('route-from').value;
-    const rawTo = document.getElementById('route-to').value;
-    const discount = parseFloat(document.getElementById('discount-select').value);
-    
-    const fromKey = findBestStation(rawFrom);
-    const toKey = findBestStation(rawTo);
-    
-    if (!fromKey || !toKey) {
-        alert("Nie rozpoznano stacji! Sprawdź czy nie ma błędu.");
-        return;
-    }
+    if(!fName || !tName) return alert("Nie rozpoznano stacji!");
 
-    // Korekta nazw w polach na poprawne
-    document.getElementById('route-from').value = fromKey.toUpperCase();
-    document.getElementById('route-to').value = toKey.toUpperCase();
+    const dist = Math.abs(stations[fName].km - stations[tName].km);
+    const row = taryfa.find(r => dist <= r.max) || {cena: 40};
+    const final = row.cena * (1 - disc);
 
-    const dist = Math.abs(stations[fromKey].km - stations[toKey].km);
-    const priceRow = taryfa.find(r => dist <= r.max) || { cena: 40.00 };
-    const finalPrice = priceRow.cena * (1 - discount);
-    
-    document.getElementById('trip-amount').value = finalPrice.toFixed(2);
-    document.getElementById('calc-info').innerText = `Rozpoznano trasę: ${dist} km. Cena bazowa: ${priceRow.cena.toFixed(2)} zł`;
+    document.getElementById('trip-amount').value = final.toFixed(2);
+    document.getElementById('route-from').value = fName.toUpperCase();
+    document.getElementById('route-to').value = tName.toUpperCase();
+    document.getElementById('calc-info').innerText = `Dystans: ${dist} km | Cena bazowa: ${row.cena} zł`;
 };
 
-window.addNewTrip = function() {
-    const from = document.getElementById('route-from').value;
-    const to = document.getElementById('route-to').value;
+window.addNewTrip = () => {
+    const f = document.getElementById('route-from').value;
+    const t = document.getElementById('route-to').value;
     const zl = parseFloat(document.getElementById('trip-amount').value);
-    
-    if (!from || !to || isNaN(zl)) {
-        alert("Najpierw oblicz cenę przejazdu!");
-        return;
-    }
+    if(!f || !t || isNaN(zl)) return alert("Oblicz cenę!");
 
-    const fromKey = findBestStation(from);
-    const toKey = findBestStation(to);
-    const dist = Math.abs(stations[fromKey].km - stations[toKey].km);
+    const dist = Math.abs(stations[f.toLowerCase()].km - stations[t.toLowerCase()].km);
 
-    const trip = {
-        od: fromKey,
-        do: toKey,
-        zl: zl,
-        km: dist,
+    push(tripsRef, {
+        od: f.toLowerCase(), do: t.toLowerCase(), zl: zl, km: dist,
         data: new Date().toLocaleDateString('pl-PL')
-    };
-
-    push(tripsRef, trip).then(() => {
+    }).then(() => {
         set(statsRef, earnedSoFar + zl);
-        // Reset formularza
         document.getElementById('route-from').value = "";
         document.getElementById('route-to').value = "";
         document.getElementById('trip-amount').value = "";
-        document.getElementById('calc-info').innerText = "✅ Przejazd zapisany!";
     });
 };
 
-// --- ZARZĄDZANIE STACJAMI ---
+// --- MAPA PAN & ZOOM ---
+const svg = document.getElementById('svg-map');
 
-window.saveNewStation = function() {
-    const name = document.getElementById('new-st-name').value.toLowerCase().trim();
-    const km = parseInt(document.getElementById('new-st-km').value);
-    const parent = document.getElementById('new-st-parent').value.toLowerCase().trim();
-    const x = parseInt(document.getElementById('new-st-x').value);
-    const y = parseInt(document.getElementById('new-st-y').value);
-
-    if (!name || isNaN(km)) return alert("Podaj nazwę i kilometraż!");
-
-    stations[name] = { km, x: x || 200, y: y || 300, parent: parent || null };
-    set(stationsRef, stations).then(() => {
-        alert("Stacja dodana do Twojej listy!");
-        renderMap();
-    });
+const handleStart = (x, y) => { isDragging = true; lastPos = { x, y }; };
+const handleMove = (x, y) => {
+    if(!isDragging) return;
+    const dx = (x - lastPos.x) * (viewbox.w / svg.clientWidth);
+    const dy = (y - lastPos.y) * (viewbox.h / svg.clientHeight);
+    viewbox.x -= dx; viewbox.y -= dy;
+    svg.setAttribute('viewBox', `${viewbox.x} ${viewbox.y} ${viewbox.w} ${viewbox.h}`);
+    lastPos = { x, y };
 };
 
-window.syncAllStationsToServer = function() {
-    if (confirm("UWAGA: To nadpisze listę stacji u wszystkich użytkowników Twoimi danymi. Kontynuować?")) {
-        set(stationsRef, stations).then(() => {
-            alert("Baza stacji została zaktualizowana na serwerze!");
-        });
-    }
-};
+svg.addEventListener('mousedown', e => handleStart(e.clientX, e.clientY));
+window.addEventListener('mousemove', e => handleMove(e.clientX, e.clientY));
+window.addEventListener('mouseup', () => isDragging = false);
 
-// --- MAPA I UI ---
+svg.addEventListener('touchstart', e => handleStart(e.touches[0].clientX, e.touches[0].clientY), {passive:false});
+svg.addEventListener('touchmove', e => {
+    handleMove(e.touches[0].clientX, e.touches[0].clientY);
+    e.preventDefault();
+}, {passive:false});
 
 function renderMap() {
-    const svg = document.getElementById('svg-map');
-    if (!svg) return;
     svg.innerHTML = "";
-
-    // Linie połączeń
-    for (let key in stations) {
-        const s = stations[key];
-        if (s.parent && stations[s.parent]) {
+    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    
+    // Rysuj linie
+    for(let k in stations) {
+        const s = stations[k];
+        if(s.parent && stations[s.parent]) {
             const p = stations[s.parent];
-            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            line.setAttribute("x1", s.x); line.setAttribute("y1", s.y);
-            line.setAttribute("x2", p.x); line.setAttribute("y2", p.y);
-            line.setAttribute("stroke", "rgba(129, 138, 248, 0.5)");
-            line.setAttribute("stroke-width", "3");
-            svg.appendChild(line);
+            const l = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            l.setAttribute("x1", s.x); l.setAttribute("y1", s.y);
+            l.setAttribute("x2", p.x); l.setAttribute("y2", p.y);
+            l.classList.add('map-link');
+            
+            // Neonowy efekt jeśli trasa była użyta
+            const used = tripsData.some(t => (t.od === k && t.do === s.parent) || (t.do === k && t.od === s.parent));
+            if(used) { l.style.stroke = "#4ade80"; l.style.opacity = "1"; l.style.strokeWidth = "4"; }
+            g.appendChild(l);
         }
     }
 
-    // Punkty stacji
-    for (let key in stations) {
-        const s = stations[key];
-        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-
-        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        circle.setAttribute("cx", s.x); circle.setAttribute("cy", s.y);
-        circle.setAttribute("r", "5"); circle.setAttribute("fill", "#fff");
+    // Rysuj kropki
+    for(let k in stations) {
+        const s = stations[k];
+        const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        c.setAttribute("cx", s.x); c.setAttribute("cy", s.y); c.setAttribute("r", "5");
+        c.setAttribute("fill", "#fff");
+        c.setAttribute("stroke", "#6366f1");
         
-        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        text.setAttribute("x", s.x + 8); text.setAttribute("y", s.y + 4);
-        text.setAttribute("fill", "#94a3b8"); text.setAttribute("font-size", "10px");
-        text.textContent = key.charAt(0).toUpperCase() + key.slice(1);
-
-        g.appendChild(circle);
-        g.appendChild(text);
-        svg.appendChild(g);
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", s.x + 10); t.setAttribute("y", s.y + 4);
+        t.setAttribute("fill", "#94a3b8"); t.setAttribute("font-size", "11px");
+        t.textContent = k.toUpperCase();
+        
+        g.appendChild(c); g.appendChild(t);
     }
+    svg.appendChild(g);
 }
 
+// --- RESZTA UI ---
+window.saveNewStation = () => {
+    const name = document.getElementById('new-st-name').value.toLowerCase().trim();
+    const km = parseInt(document.getElementById('new-st-km').value);
+    const x = parseInt(document.getElementById('new-st-x').value);
+    const y = parseInt(document.getElementById('new-st-y').value);
+    const parent = document.getElementById('new-st-parent').value.toLowerCase().trim();
+
+    if(!name || isNaN(km)) return;
+    stations[name] = { km, x, y, parent: parent || null };
+    set(stationsRef, stations);
+};
+
+window.syncAllStationsToServer = () => { if(confirm("Nadpisać bazę?")) set(stationsRef, stations); };
+
 function updateUI() {
-    const goal = 150;
-    const progress = (earnedSoFar / goal) * 100;
-    const fill = document.getElementById('bar-fill');
-    if(fill) fill.style.width = Math.min(progress, 100) + "%";
-    
-    document.getElementById('percentage-label').innerText = progress.toFixed(1) + "%";
+    const p = (earnedSoFar / 150) * 100;
+    document.getElementById('bar-fill').style.width = Math.min(p, 100) + "%";
+    document.getElementById('percentage-label').innerText = p.toFixed(1) + "%";
     document.getElementById('earned-val').innerText = earnedSoFar.toFixed(2) + " zł";
 }
 
 function renderDataList() {
     const dl = document.getElementById('stations-list');
-    if (!dl) return;
     dl.innerHTML = "";
-    Object.keys(stations).sort().forEach(k => {
-        const opt = document.createElement('option');
-        opt.value = k.toUpperCase();
-        dl.appendChild(opt);
+    Object.keys(stations).forEach(k => {
+        const o = document.createElement('option');
+        o.value = k.toUpperCase();
+        dl.appendChild(o);
     });
 }
 
-// Globalne funkcje okien
 window.openMap = () => { document.getElementById('map-modal').classList.add('active'); renderMap(); };
 window.closeMap = () => document.getElementById('map-modal').classList.remove('active');
 window.openStationList = () => {
     const grid = document.getElementById('full-station-grid');
     grid.innerHTML = "";
     Object.keys(stations).sort().forEach(k => {
-        grid.innerHTML += `<div class="station-card"><b>${k.toUpperCase()}</b><br><small>${stations[k].km} km</small></div>`;
+        grid.innerHTML += `<div class="station-card"><b>${k.toUpperCase()}</b><br>${stations[k].km} km</div>`;
     });
     document.getElementById('list-modal').classList.add('active');
 };

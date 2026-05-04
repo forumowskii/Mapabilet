@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Bilet Tracker Pro v6.0</title>
+    <title>Bilet Tracker Pro v7.0</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -11,6 +11,7 @@
             --success: #22c55e;
             --danger: #ef4444;
             --warning: #facc15;
+            --bg-dark: #0b0f1a;
             --glass: rgba(30, 41, 59, 0.7);
         }
 
@@ -47,25 +48,21 @@
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
         }
 
-        /* Nagłówek i status */
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 5px;
+        /* POPRAWIONY Gradient na tekście */
+        #earned-val {
+            font-size: 48px;
+            font-weight: 900;
+            text-align: center;
+            background: linear-gradient(to bottom, #ffffff, #cbd5e1);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            -webkit-text-fill-color: transparent;
+            display: block;
+            margin: 10px 0;
+            filter: drop-shadow(0 0 10px rgba(255,255,255,0.2));
         }
 
-        .status-badge {
-            background: var(--success);
-            color: white;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 11px;
-            font-weight: 800;
-            letter-spacing: 0.5px;
-        }
-
-        /* Licznik i Progress Bar */
         .progress-container {
             background: rgba(0, 0, 0, 0.3);
             height: 16px;
@@ -79,26 +76,73 @@
             height: 100%;
             width: 0%;
             transition: width 1s cubic-bezier(0.34, 1.56, 0.64, 1);
-            box-shadow: 0 0 15px rgba(168, 85, 247, 0.5);
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
         }
-#earned-val {
-    font-size: 42px;
-    font-weight: 900;
-    text-align: center;
-    /* Najpierw definiujemy tło */
-    background: linear-gradient(to bottom, #ffffff, #cbd5e1);
-    /* Potem wycinamy tło do kształtu liter */
-    background-clip: text; 
-    -webkit-background-clip: text;
-    /* Na końcu sprawiamy, że kolor czcionki nie przykrywa gradientu */
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-    /* Dodaj display, aby upewnić się, że kontener obejmuje tekst poprawnie */
-    display: block; 
-    margin: 10px 0;
-}
 
-        /* Formularze */
+        /* Interaktywna Mapa */
+        #svg-map {
+            width: 100%;
+            height: 60vh;
+            background: var(--bg-dark);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            cursor: grab;
+            touch-action: none; /* Kluczowe dla obsługi własnego dragowania */
+        }
+
+        #svg-map:active { cursor: grabbing; }
+
+        .map-link {
+            stroke: #6366f1;
+            stroke-width: 3;
+            stroke-linecap: round;
+            opacity: 0.4;
+            transition: all 0.3s;
+        }
+
+        /* Historia i Gesty Swipe */
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .swipe-container {
+            position: relative;
+            overflow: hidden;
+            border-radius: 18px;
+            touch-action: pan-x;
+        }
+
+        .delete-btn {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 85px;
+            background: var(--danger);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+            z-index: 1;
+            border-radius: 0 18px 18px 0;
+        }
+
+        .history-item {
+            position: relative;
+            z-index: 2;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+            border-left: 4px solid var(--accent);
+        }
+
+        /* Formularze i przyciski */
         input, select, button {
             width: 100%;
             padding: 15px;
@@ -109,10 +153,7 @@
             box-sizing: border-box;
             font-size: 15px;
             outline: none;
-            transition: all 0.2s;
         }
-
-        input:focus { border-color: var(--accent); background: rgba(15, 23, 42, 0.8); }
 
         button {
             background: var(--accent);
@@ -120,53 +161,10 @@
             border: none;
             cursor: pointer;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 0.5px;
         }
 
         button:active { transform: scale(0.96); }
-
-        /* Historia i Swipe-to-Delete */
-        .history-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-top: 10px;
-        }
-
-        .swipe-container {
-            position: relative;
-            overflow: hidden;
-            border-radius: 16px;
-            touch-action: pan-x;
-        }
-
-        .delete-btn {
-            position: absolute;
-            right: 0;
-            top: 0;
-            bottom: 0;
-            width: 80px;
-            background: var(--danger);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 20px;
-            z-index: 1;
-            border-radius: 0 16px 16px 0;
-        }
-
-        .history-item {
-            position: relative;
-            z-index: 2;
-            background: rgba(255, 255, 255, 0.07);
-            padding: 16px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: transform 0.3s ease;
-            border-left: 4px solid var(--accent);
-        }
 
         /* Modale */
         .modal {
@@ -181,6 +179,7 @@
             flex-direction: column;
             padding: 20px;
             box-sizing: border-box;
+            overflow-y: auto;
         }
 
         .modal.active { display: flex; }
@@ -189,50 +188,42 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-        }
-
-        /* Mapa SVG */
-        #svg-map {
-            width: 100%;
-            height: 55vh;
-            background: rgba(0, 0, 0, 0.4);
-            border-radius: 20px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 15px;
         }
 
         .station-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            overflow-y: auto;
-            padding-bottom: 40px;
+            gap: 12px;
         }
 
         .station-card {
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(255,255,255,0.05);
             padding: 12px;
-            border-radius: 12px;
-            font-size: 13px;
+            border-radius: 14px;
             border-bottom: 2px solid var(--accent);
         }
 
-        /* Datalist styling (niektóre mobilki) */
-        option { background: #1e1b4b; color: white; }
-
+        #calc-info {
+            font-size: 12px;
+            text-align: center;
+            color: var(--accent);
+            margin: 5px 0;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
 
     <div class="app-container">
-        <header>
-            <h2 style="margin:0; font-weight: 800;">🚆 Licznik PKP</h2>
-            <div class="status-badge">ONLINE</div>
+        <header style="display: flex; justify-content: space-between; align-items: center; padding: 5px;">
+            <h2 style="margin:0; font-weight: 800; letter-spacing: -1px;">🚆 Licznik PKP</h2>
+            <div style="background: var(--success); padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800;">POŁĄCZONO</div>
         </header>
 
         <section class="card">
             <div style="display: flex; justify-content: space-between; font-size: 13px; opacity: 0.7;">
-                <span>Zysk z biletu (150 zł)</span>
+                <span>Zaoszczędzono na bilecie (150 zł)</span>
                 <span id="percentage-label">0%</span>
             </div>
             <div class="progress-container"><div id="bar-fill"></div></div>
@@ -240,77 +231,72 @@
         </section>
 
         <div style="display: flex; gap: 10px;">
-            <button onclick="window.openMap()" style="background: var(--warning); color: #000; flex: 1;">🗺️ Mapa Sieci</button>
-            <button onclick="window.openStationList()" style="background: #475569; flex: 1;">📋 Lista Stacji</button>
+            <button onclick="window.openMap()" style="background: var(--warning); color: #000; flex: 1;">🗺️ MAPA SIECI</button>
+            <button onclick="window.openStationList()" style="background: #475569; flex: 1;">📋 LISTA STACJI</button>
         </div>
 
         <section class="card">
-            <h3 style="margin-top:0; font-size: 16px; color: var(--success);">📝 Nowy Przejazd</h3>
             <div style="display: grid; gap: 10px;">
                 <div style="display: flex; gap: 8px;">
-                    <input type="text" id="route-from" placeholder="Z skąd? (np. Gdansk)" list="stations-list">
-                    <input type="text" id="route-to" placeholder="Dokąd? (np. Lebork)" list="stations-list">
+                    <input type="text" id="route-from" placeholder="Skąd?" list="stations-list">
+                    <input type="text" id="route-to" placeholder="Dokąd?" list="stations-list">
                 </div>
                 <datalist id="stations-list"></datalist>
                 
                 <div style="display: flex; gap: 8px;">
                     <select id="discount-select" style="flex: 2;">
-                        <option value="0">Bilet Normalny</option>
+                        <option value="0">Normalny (100%)</option>
                         <option value="0.51">Student (51%)</option>
-                        <option value="0.37">KDR / Dziecko (37%)</option>
+                        <option value="0.37">KDR (37%)</option>
                         <option value="0.33">Nauczyciel (33%)</option>
-                        <option value="0.93">Niewidomy (93%)</option>
                     </select>
-                    <input type="number" id="trip-amount" placeholder="Cena" style="flex: 1; font-weight: bold; color: var(--success);">
+                    <input type="number" id="trip-amount" placeholder="Cena zł" style="flex: 1; font-weight: bold; color: var(--success);">
                 </div>
                 
-                <button onclick="window.calculatePrice()" style="background: var(--accent); margin-top: 5px;">🧮 Oblicz trasę i cenę</button>
-                <button onclick="window.addNewTrip()" style="background: var(--success);">✅ Zapisz w historii</button>
-                <p id="calc-info" style="font-size: 11px; text-align: center; color: #94a3b8; margin: 0;"></p>
+                <button onclick="window.calculatePrice()">🧮 Oblicz trasę (KM)</button>
+                <button onclick="window.addNewTrip()" style="background: var(--success);">✅ Zapisz przejazd</button>
+                <p id="calc-info"></p>
             </div>
         </section>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 10px;">
-            <h3 style="font-size: 14px; opacity: 0.6; margin:0;">📜 OSTATNIE PRZEJAZDY</h3>
-            <span style="font-size: 10px; opacity: 0.4;">SWIPE W LEWO BY USUNĄĆ</span>
-        </div>
+        <h3 style="font-size: 14px; opacity: 0.5; margin: 10px 0 5px 10px; letter-spacing: 1px;">📜 OSTATNIE PRZEJAZDY</h3>
         <div id="history-list" class="history-list">
-            </div>
-    </div>
-
-    <div id="list-modal" class="modal">
-        <div class="modal-header">
-            <h3>📋 Baza Stacji (Punkt 0: Gdańsk)</h3>
-            <button onclick="window.closeStationList()" style="width: auto; background: var(--danger);">X</button>
-        </div>
-        <button onclick="window.syncAllStationsToServer()" style="background: #ca8a04; margin-bottom: 20px;">⬆️ Wyślij całą listę na serwer</button>
-        <div id="full-station-grid" class="station-grid">
             </div>
     </div>
 
     <div id="map-modal" class="modal">
         <div class="modal-header">
-            <h3>🗺️ Interaktywna Mapa</h3>
-            <button onclick="window.closeMap()" style="width: auto; background: var(--danger);">X</button>
+            <h3 style="margin:0">🗺️ Mapa i Edytor</h3>
+            <button onclick="window.closeMap()" style="width: auto; background: var(--danger); padding: 10px 20px;">ZAMKNIJ</button>
         </div>
         
         <svg id="svg-map" viewBox="0 0 400 600"></svg>
 
         <div class="card" style="margin-top: 15px; background: rgba(0,0,0,0.4);">
-            <h4 style="margin-top:0; font-size: 14px;">➕ Dodaj nową kropkę na mapie</h4>
+            <h4 style="margin:0 0 10px 0; font-size: 14px;">➕ Dodaj Punkt do Systemu</h4>
             <div style="display: grid; gap: 8px;">
                 <input type="text" id="new-st-name" placeholder="Nazwa stacji">
                 <div style="display: flex; gap: 8px;">
-                    <input type="number" id="new-st-km" placeholder="Km od Gdańska">
-                    <input type="text" id="new-st-parent" placeholder="Rodzic (linia od)" list="stations-list">
+                    <input type="number" id="new-st-km" placeholder="Kilometraż">
+                    <input type="text" id="new-st-parent" placeholder="Rodzic" list="stations-list">
                 </div>
                 <div style="display: flex; gap: 8px;">
-                    <input type="number" id="new-st-x" placeholder="X (0-400)">
-                    <input type="number" id="new-st-y" placeholder="Y (0-600)">
+                    <input type="number" id="new-st-x" placeholder="X (szerokość)">
+                    <input type="number" id="new-st-y" placeholder="Y (wysokość)">
                 </div>
-                <button onclick="window.saveNewStation()" style="background: var(--success); font-size: 12px;">Zapisz stację w systemie</button>
+                <button onclick="window.saveNewStation()" style="background: var(--success);">DODAJ STACJĘ</button>
             </div>
         </div>
+    </div>
+
+    <div id="list-modal" class="modal">
+        <div class="modal-header">
+            <h3 style="margin:0">📋 Pełna Baza Stacji</h3>
+            <button onclick="window.closeStationList()" style="width: auto; background: var(--danger);">POWRÓT</button>
+        </div>
+        <button onclick="window.syncAllStationsToServer()" style="background: #ca8a04; margin-bottom: 20px;">⬆️ SYNCHRONIZUJ CAŁĄ BAZĘ Z SERWEREM</button>
+        <div id="full-station-grid" class="station-grid">
+            </div>
     </div>
 
     <script type="module" src="./app.js"></script>
