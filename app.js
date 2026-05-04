@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
 // --- KONFIGURACJA FIREBASE ---
 const firebaseConfig = {
@@ -15,16 +15,16 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-// Referencje
+// Referencje do bazy
 const statsRef = ref(db, 'stats/oszczednosci');
 const tripsRef = ref(db, 'stats/przejazdy');
 const stationsRef = ref(db, 'stats/stacje_siec');
 
 let earnedSoFar = 0;
 let stations = {};
-let trips = [];
+let tripsData = [];
 
-// --- TARYFA POMORSKA 2026 (Ceny brutto) ---
+// --- TARYFA POMORSKA 2026 ---
 const taryfa = [
     {max: 6, cena: 7.00}, {max: 12, cena: 8.00}, {max: 18, cena: 9.00},
     {max: 24, cena: 11.00}, {max: 30, cena: 12.00}, {max: 40, cena: 14.00},
@@ -33,136 +33,180 @@ const taryfa = [
     {max: 120, cena: 30.00}, {max: 140, cena: 32.00}, {max: 160, cena: 34.00}
 ];
 
-// --- FUNKCJA NORMALIZACJI TEKSTU (Dla błędów) ---
-// Usuwa polskie znaki, spacje, zamienia u->ó itp.
-const normalizeText = (text) => {
+// --- SYSTEM ROZPOZNAWANIA BŁĘDÓW (Fuzzy Matching) ---
+const normalize = (text) => {
     if (!text) return "";
     return text.toLowerCase()
         .replace(/ą/g, 'a').replace(/ć/g, 'c').replace(/ę/g, 'e')
         .replace(/ł/g, 'l').replace(/ń/g, 'n').replace(/ó/g, 'o')
         .replace(/ś/g, 's').replace(/ź/g, 'z').replace(/ż/g, 'z')
-        .replace(/u/g, 'o') // traktujemy 'u' jak 'ó' dla błędów ort.
+        .replace(/u/g, 'o') // u traktujemy jak ó dla błędów ortograficznych
         .replace(/\s+/g, '') // usuwamy spacje
         .trim();
 };
 
-// Funkcja szukająca najlepszego dopasowania stacji
 const findBestStation = (input) => {
-    const normalizedInput = normalizeText(input);
-    if (!normalizedInput) return null;
-
-    let bestMatch = null;
-    let highestScore = 0;
-
-    for (let key in stations) {
-        const normalizedKey = normalizeText(key);
-        
-        // 1. Dokładne dopasowanie po normalizacji
-        if (normalizedKey === normalizedInput) return key;
-
-        // 2. Prosty algorytm podobieństwa (czy jeden zawiera drugi)
-        if (normalizedKey.includes(normalizedInput) || normalizedInput.includes(normalizedKey)) {
-            return key; 
-        }
-    }
-    return null;
+    const ni = normalize(input);
+    if (!ni) return null;
+    
+    // Szukamy stacji, której znormalizowana nazwa pasuje do wpisanej
+    return Object.keys(stations).find(key => {
+        const nk = normalize(key);
+        return nk === ni || nk.includes(ni) || ni.includes(nk);
+    });
 };
 
-// --- SYNCHRONIZACJA Z BAZĄ ---
+// --- SYNCHRONIZACJA DANYCH ---
 
-onValue(stationsRef, (s) => {
-    stations = s.exists() ? s.val() : {
-        "gdańsk główny": { km: 0, x: 200, y: 350, parent: null },
-        "tczew": { km: 32, x: 200, y: 550, parent: "gdańsk główny" }
-    };
-    renderDataList();
+onValue(stationsRef, (snapshot) => {
+    if (snapshot.exists()) {
+        stations = snapshot.val();
+        renderDataList();
+    }
 });
 
-onValue(statsRef, (s) => {
-    earnedSoFar = s.val() || 0;
+onValue(statsRef, (snapshot) => {
+    earnedSoFar = snapshot.val() || 0;
     updateUI();
 });
 
-onValue(tripsRef, (s) => {
-    trips = [];
+onValue(tripsRef, (snapshot) => {
     const list = document.getElementById('history-list');
     list.innerHTML = "";
-    if(s.exists()){
-        s.forEach(child => {
-            const t = child.val();
-            trips.push(t);
-            list.innerHTML = `
-                <div class="history-item">
-                    <span><b>${t.od.toUpperCase()} ➔ ${t.do}</b><br>
-                    <small>${t.km} km | Ulga ${t.ulga}% | ${t.data || ''}</small></span>
-                    <span style="color:#4ade80; font-weight:bold;">+${parseFloat(t.zl).toFixed(2)} zł</span>
-                </div>
-            ` + list.innerHTML;
+    tripsData = [];
+    
+    if (snapshot.exists()) {
+        snapshot.forEach(child => {
+            const data = child.val();
+            const id = child.key;
+            tripsData.push({ ...data, id });
+            createSwipeItem(list, data, id);
         });
+    } else {
+        list.innerHTML = "<p style='text-align:center; opacity:0.5;'>Brak przejazdów w historii</p>";
     }
 });
 
-// --- OBSŁUGA PRZYCISKÓW ---
+// --- LOGIKA SWIPE (Przesunięcie by usunąć) ---
+function createSwipeItem(container, data, id) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'swipe-container';
+    
+    wrapper.innerHTML = `
+        <div class="delete-btn" onclick="window.confirmDelete('${id}', ${data.zl})">🗑️</div>
+        <div class="history-item" id="item-${id}">
+            <div style="display:flex; flex-direction:column;">
+                <span style="font-weight:800; font-size:14px;">${data.od.toUpperCase()} ➔ ${data.do.toUpperCase()}</span>
+                <small style="opacity:0.6; font-size:11px;">${data.km} km | ${data.data || 'Brak daty'}</small>
+            </div>
+            <div style="text-align:right;">
+                <span style="color:#4ade80; font-weight:800;">+${parseFloat(data.zl).toFixed(2)}</span>
+            </div>
+        </div>
+    `;
+
+    const item = wrapper.querySelector('.history-item');
+    let startX = 0;
+    let currentX = 0;
+
+    // Obsługa dotyku
+    item.addEventListener('touchstart', e => {
+        startX = e.touches[0].clientX;
+        item.style.transition = 'none';
+    });
+
+    item.addEventListener('touchmove', e => {
+        currentX = e.touches[0].clientX - startX;
+        // Reagujemy tylko na przesunięcie w lewo (by odsłonić śmietnik po prawej)
+        if (currentX < 0) {
+            const move = Math.max(currentX, -80);
+            item.style.transform = `translateX(${move}px)`;
+        }
+    });
+
+    item.addEventListener('touchend', e => {
+        item.style.transition = 'transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28)';
+        if (currentX < -40) {
+            item.style.transform = 'translateX(-80px)';
+        } else {
+            item.style.transform = 'translateX(0)';
+        }
+    });
+
+    container.prepend(wrapper);
+}
+
+window.confirmDelete = (id, amount) => {
+    if (confirm("Czy na pewno chcesz usunąć ten wpis z historii?")) {
+        remove(ref(db, `stats/przejazdy/${id}`)).then(() => {
+            set(statsRef, earnedSoFar - amount);
+        });
+    } else {
+        const item = document.getElementById(`item-${id}`);
+        if(item) item.style.transform = 'translateX(0)';
+    }
+};
+
+// --- OBSŁUGA FORMULARZA ---
 
 window.calculatePrice = function() {
     const rawFrom = document.getElementById('route-from').value;
     const rawTo = document.getElementById('route-to').value;
-    const disc = parseFloat(document.getElementById('discount-select').value);
+    const discount = parseFloat(document.getElementById('discount-select').value);
     
     const fromKey = findBestStation(rawFrom);
     const toKey = findBestStation(rawTo);
     
-    if(!fromKey || !toKey) {
-        document.getElementById('calc-info').innerText = "❌ Nie znaleziono stacji (sprawdź listę)";
-        document.getElementById('calc-info').style.color = "#f87171";
+    if (!fromKey || !toKey) {
+        alert("Nie rozpoznano stacji! Sprawdź czy nie ma błędu.");
         return;
     }
 
-    // Wyświetlamy poprawioną nazwę w polu, żeby użytkownik widział, że system go zrozumiał
-    document.getElementById('route-from').value = fromKey.charAt(0).toUpperCase() + fromKey.slice(1);
-    document.getElementById('route-to').value = toKey.charAt(0).toUpperCase() + toKey.slice(1);
+    // Korekta nazw w polach na poprawne
+    document.getElementById('route-from').value = fromKey.toUpperCase();
+    document.getElementById('route-to').value = toKey.toUpperCase();
 
     const dist = Math.abs(stations[fromKey].km - stations[toKey].km);
-    const row = taryfa.find(r => dist <= r.max) || {cena: 40.00};
-    const final = row.cena * (1 - disc);
+    const priceRow = taryfa.find(r => dist <= r.max) || { cena: 40.00 };
+    const finalPrice = priceRow.cena * (1 - discount);
     
-    document.getElementById('trip-amount').value = final.toFixed(2);
-    document.getElementById('calc-info').innerText = `✅ Trasę rozpoznano: ${dist} km. Cena bazowa: ${row.cena.toFixed(2)} zł`;
-    document.getElementById('calc-info').style.color = "#4ade80";
+    document.getElementById('trip-amount').value = finalPrice.toFixed(2);
+    document.getElementById('calc-info').innerText = `Rozpoznano trasę: ${dist} km. Cena bazowa: ${priceRow.cena.toFixed(2)} zł`;
 };
 
 window.addNewTrip = function() {
-    const od = document.getElementById('route-from').value;
-    const d = document.getElementById('route-to').value;
+    const from = document.getElementById('route-from').value;
+    const to = document.getElementById('route-to').value;
     const zl = parseFloat(document.getElementById('trip-amount').value);
-    const discProc = (parseFloat(document.getElementById('discount-select').value) * 100).toFixed(0);
     
-    if(!od || !d || isNaN(zl)) return alert("Najpierw oblicz cenę!");
+    if (!from || !to || isNaN(zl)) {
+        alert("Najpierw oblicz cenę przejazdu!");
+        return;
+    }
 
-    const fromKey = findBestStation(od);
-    const toKey = findBestStation(d);
+    const fromKey = findBestStation(from);
+    const toKey = findBestStation(to);
     const dist = Math.abs(stations[fromKey].km - stations[toKey].km);
 
-    const newTrip = {
+    const trip = {
         od: fromKey,
         do: toKey,
         zl: zl,
         km: dist,
-        ulga: discProc,
         data: new Date().toLocaleDateString('pl-PL')
     };
 
-    push(tripsRef, newTrip).then(() => {
+    push(tripsRef, trip).then(() => {
         set(statsRef, earnedSoFar + zl);
-        // Czyścimy formularz
+        // Reset formularza
         document.getElementById('route-from').value = "";
         document.getElementById('route-to').value = "";
         document.getElementById('trip-amount').value = "";
-        document.getElementById('calc-info').innerText = "Zapisano pomyślnie!";
+        document.getElementById('calc-info').innerText = "✅ Przejazd zapisany!";
     });
 };
 
-// --- MAPA I EDYTOR SIECI ---
+// --- ZARZĄDZANIE STACJAMI ---
 
 window.saveNewStation = function() {
     const name = document.getElementById('new-st-name').value.toLowerCase().trim();
@@ -171,114 +215,93 @@ window.saveNewStation = function() {
     const x = parseInt(document.getElementById('new-st-x').value);
     const y = parseInt(document.getElementById('new-st-y').value);
 
-    if(!name || isNaN(km) || isNaN(x) || isNaN(y)) return alert("Wypełnij dane punktu!");
-    
-    stations[name] = { 
-        km: km, 
-        x: x, 
-        y: y, 
-        parent: parent || null 
-    };
+    if (!name || isNaN(km)) return alert("Podaj nazwę i kilometraż!");
 
+    stations[name] = { km, x: x || 200, y: y || 300, parent: parent || null };
     set(stationsRef, stations).then(() => {
-        alert(`Stacja ${name} dodana do systemu.`);
+        alert("Stacja dodana do Twojej listy!");
         renderMap();
     });
 };
 
+window.syncAllStationsToServer = function() {
+    if (confirm("UWAGA: To nadpisze listę stacji u wszystkich użytkowników Twoimi danymi. Kontynuować?")) {
+        set(stationsRef, stations).then(() => {
+            alert("Baza stacji została zaktualizowana na serwerze!");
+        });
+    }
+};
+
+// --- MAPA I UI ---
+
 function renderMap() {
     const svg = document.getElementById('svg-map');
-    if(!svg) return;
+    if (!svg) return;
     svg.innerHTML = "";
-    
-    // 1. Rysowanie linii (połączeń)
-    for(let key in stations) {
+
+    // Linie połączeń
+    for (let key in stations) {
         const s = stations[key];
-        if(s.parent && stations[s.parent]) {
+        if (s.parent && stations[s.parent]) {
             const p = stations[s.parent];
-            
-            // Liczenie natężenia na tym konkretnym odcinku
-            const count = trips.filter(t => 
-                (t.od === key && t.do === s.parent) || (t.do === key && t.od === s.parent)
-            ).length;
-
-            let color = "#334155"; // Domyślny szary
-            let width = 3;
-
-            if(count > 0) { color = "#f97316"; width = 4; }
-            if(count >= 5) { color = "#ef4444"; width = 6; }
-            if(count >= 20) { color = "#7f1d1d"; width = 10; }
-
             const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
             line.setAttribute("x1", s.x); line.setAttribute("y1", s.y);
             line.setAttribute("x2", p.x); line.setAttribute("y2", p.y);
-            line.setAttribute("stroke", color);
-            line.setAttribute("stroke-width", width);
-            line.setAttribute("stroke-linecap", "round");
+            line.setAttribute("stroke", "rgba(129, 138, 248, 0.5)");
+            line.setAttribute("stroke-width", "3");
             svg.appendChild(line);
         }
     }
 
-    // 2. Rysowanie punktów i nazw
-    for(let key in stations) {
+    // Punkty stacji
+    for (let key in stations) {
         const s = stations[key];
-        
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
         const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         circle.setAttribute("cx", s.x); circle.setAttribute("cy", s.y);
-        circle.setAttribute("r", "5");
-        circle.setAttribute("fill", "#fff");
-        svg.appendChild(circle);
-
+        circle.setAttribute("r", "5"); circle.setAttribute("fill", "#fff");
+        
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        text.setAttribute("x", s.x + 10);
-        text.setAttribute("y", s.y + 5);
-        text.setAttribute("fill", "#cbd5e1");
-        text.setAttribute("font-size", "11px");
-        text.textContent = `${key.charAt(0).toUpperCase() + key.slice(1)} (${s.km}km)`;
-        svg.appendChild(text);
+        text.setAttribute("x", s.x + 8); text.setAttribute("y", s.y + 4);
+        text.setAttribute("fill", "#94a3b8"); text.setAttribute("font-size", "10px");
+        text.textContent = key.charAt(0).toUpperCase() + key.slice(1);
+
+        g.appendChild(circle);
+        g.appendChild(text);
+        svg.appendChild(g);
     }
 }
-
-// --- POMOCNICZE UI ---
 
 function updateUI() {
     const goal = 150;
     const progress = (earnedSoFar / goal) * 100;
-    const bar = document.getElementById('bar-fill');
-    if(bar) {
-        bar.style.width = Math.min(progress, 100) + "%";
-        if(progress >= 100) bar.style.background = "#22c55e";
-    }
+    const fill = document.getElementById('bar-fill');
+    if(fill) fill.style.width = Math.min(progress, 100) + "%";
+    
     document.getElementById('percentage-label').innerText = progress.toFixed(1) + "%";
     document.getElementById('earned-val').innerText = earnedSoFar.toFixed(2) + " zł";
 }
 
 function renderDataList() {
     const dl = document.getElementById('stations-list');
-    if(!dl) return;
+    if (!dl) return;
     dl.innerHTML = "";
-    Object.keys(stations).forEach(k => {
+    Object.keys(stations).sort().forEach(k => {
         const opt = document.createElement('option');
-        opt.value = k.charAt(0).toUpperCase() + k.slice(1);
+        opt.value = k.toUpperCase();
         dl.appendChild(opt);
     });
 }
 
-window.openMap = () => { 
-    document.getElementById('map-modal').classList.add('active'); 
-    setTimeout(renderMap, 100); // Mały delay na renderowanie SVG
-};
+// Globalne funkcje okien
+window.openMap = () => { document.getElementById('map-modal').classList.add('active'); renderMap(); };
 window.closeMap = () => document.getElementById('map-modal').classList.remove('active');
-
 window.openStationList = () => {
     const grid = document.getElementById('full-station-grid');
     grid.innerHTML = "";
     Object.keys(stations).sort().forEach(k => {
-        grid.innerHTML += `
-            <div style="background:rgba(255,255,255,0.05); padding:10px; border-radius:8px; border-bottom: 2px solid #6366f1;">
-                <b style="color:#fff;">${k.toUpperCase()}</b><br>
-                <small style="color:#94a3b8;">${stations[k].km} km od Punktu 0</small>
-            </div>`;
+        grid.innerHTML += `<div class="station-card"><b>${k.toUpperCase()}</b><br><small>${stations[k].km} km</small></div>`;
     });
     document.getElementById('list-modal').classList.add('active');
 };

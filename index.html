@@ -2,130 +2,315 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bilet Tracker Pro v5.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bilet Tracker Pro v6.0</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     <style>
-        :root { --bg: #0f172a; --card: #1e293b; --accent: #6366f1; --success: #22c55e; --text: #f8fafc; }
-        body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; margin: 0; padding: 20px; display: flex; justify-content: center; }
-        .app-container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 20px; }
-        
-        .card { background: var(--card); padding: 20px; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); }
-        h1, h2, h3 { margin: 0; }
-        
-        /* Progress Bar */
-        .progress-container { background: rgba(0,0,0,0.2); height: 12px; border-radius: 10px; overflow: hidden; margin: 10px 0; }
-        #bar-fill { background: var(--accent); height: 100%; width: 0%; transition: width 0.5s ease; }
-        
-        /* Form elements */
-        input, select, button { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: white; box-sizing: border-box; font-size: 14px; }
-        button { background: var(--accent); font-weight: bold; cursor: pointer; border: none; transition: opacity 0.2s; }
-        button:active { opacity: 0.8; }
-        
-        .status-online { background: var(--success); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
-        
-        /* History & Modals */
-        .history-list { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
-        .history-item { background: rgba(255,255,255,0.03); padding: 10px; border-radius: 8px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid var(--accent); }
-        
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg); z-index: 100; flex-direction: column; padding: 20px; box-sizing: border-box; overflow-y: auto; }
+        :root {
+            --accent: #818cf8;
+            --success: #22c55e;
+            --danger: #ef4444;
+            --warning: #facc15;
+            --glass: rgba(30, 41, 59, 0.7);
+        }
+
+        body {
+            /* Nowoczesny gradient niebiesko-fioletowy */
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #4c1d95 100%);
+            background-attachment: fixed;
+            color: #f8fafc;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 500px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        /* Styl szklanych kart */
+        .card {
+            background: var(--glass);
+            padding: 20px;
+            border-radius: 24px;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Nagłówek i status */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 5px;
+        }
+
+        .status-badge {
+            background: var(--success);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+        }
+
+        /* Licznik i Progress Bar */
+        .progress-container {
+            background: rgba(0, 0, 0, 0.3);
+            height: 16px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+
+        #bar-fill {
+            background: linear-gradient(90deg, #6366f1, #a855f7);
+            height: 100%;
+            width: 0%;
+            transition: width 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.5);
+        }
+#earned-val {
+    font-size: 42px;
+    font-weight: 900;
+    text-align: center;
+    /* Najpierw definiujemy tło */
+    background: linear-gradient(to bottom, #ffffff, #cbd5e1);
+    /* Potem wycinamy tło do kształtu liter */
+    background-clip: text; 
+    -webkit-background-clip: text;
+    /* Na końcu sprawiamy, że kolor czcionki nie przykrywa gradientu */
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    /* Dodaj display, aby upewnić się, że kontener obejmuje tekst poprawnie */
+    display: block; 
+    margin: 10px 0;
+}
+
+        /* Formularze */
+        input, select, button {
+            width: 100%;
+            padding: 15px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(15, 23, 42, 0.6);
+            color: white;
+            box-sizing: border-box;
+            font-size: 15px;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        input:focus { border-color: var(--accent); background: rgba(15, 23, 42, 0.8); }
+
+        button {
+            background: var(--accent);
+            font-weight: 800;
+            border: none;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        button:active { transform: scale(0.96); }
+
+        /* Historia i Swipe-to-Delete */
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        .swipe-container {
+            position: relative;
+            overflow: hidden;
+            border-radius: 16px;
+            touch-action: pan-x;
+        }
+
+        .delete-btn {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 80px;
+            background: var(--danger);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+            z-index: 1;
+            border-radius: 0 16px 16px 0;
+        }
+
+        .history-item {
+            position: relative;
+            z-index: 2;
+            background: rgba(255, 255, 255, 0.07);
+            padding: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: transform 0.3s ease;
+            border-left: 4px solid var(--accent);
+        }
+
+        /* Modale */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0f172a;
+            z-index: 1000;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
         .modal.active { display: flex; }
-        
-        #svg-map { width: 100%; height: 60vh; background: #000; border-radius: 12px; margin: 20px 0; border: 1px solid #334155; }
-        .legend { display: flex; gap: 10px; font-size: 11px; justify-content: center; flex-wrap: wrap; }
-        .legend-i { display: flex; align-items: center; gap: 4px; }
-        .dot { width: 10px; height: 10px; border-radius: 2px; }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        /* Mapa SVG */
+        #svg-map {
+            width: 100%;
+            height: 55vh;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .station-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            overflow-y: auto;
+            padding-bottom: 40px;
+        }
+
+        .station-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            border-bottom: 2px solid var(--accent);
+        }
+
+        /* Datalist styling (niektóre mobilki) */
+        option { background: #1e1b4b; color: white; }
+
     </style>
 </head>
 <body>
 
     <div class="app-container">
-        <header style="display: flex; justify-content: space-between; align-items: center;">
-            <h2>🚆 Licznik biletowy</h2>
-            <div class="status-online">Online</div>
+        <header>
+            <h2 style="margin:0; font-weight: 800;">🚆 Licznik PKP</h2>
+            <div class="status-badge">ONLINE</div>
         </header>
 
         <section class="card">
-            <div style="display: flex; justify-content: space-between; font-size: 14px; opacity: 0.8;">
+            <div style="display: flex; justify-content: space-between; font-size: 13px; opacity: 0.7;">
                 <span>Zysk z biletu (150 zł)</span>
                 <span id="percentage-label">0%</span>
             </div>
             <div class="progress-container"><div id="bar-fill"></div></div>
-            <div id="earned-val" style="font-size: 32px; font-weight: 800; text-align: center; margin-top: 10px;">0.00 zł</div>
+            <div id="earned-val">0.00 zł</div>
         </section>
 
-        <section class="card" style="display: flex; gap: 10px; padding: 10px;">
-            <button onclick="window.openMap()" style="background: #facc15; color: #000;">🗺️ MAPA / EDYCJA</button>
-            <button onclick="window.openStationList()" style="background: #334155;">📋 LISTA STACJI</button>
-        </section>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="window.openMap()" style="background: var(--warning); color: #000; flex: 1;">🗺️ Mapa Sieci</button>
+            <button onclick="window.openStationList()" style="background: #475569; flex: 1;">📋 Lista Stacji</button>
+        </div>
 
         <section class="card">
-            <h3 style="color: var(--success); font-size: 16px; margin-bottom: 15px;">📝 Dodaj Przejazd</h3>
+            <h3 style="margin-top:0; font-size: 16px; color: var(--success);">📝 Nowy Przejazd</h3>
             <div style="display: grid; gap: 10px;">
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" id="route-from" placeholder="Od (np. Gdańsk)" list="stations-list">
-                    <input type="text" id="route-to" placeholder="Do (np. Sopot)" list="stations-list">
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="route-from" placeholder="Z skąd? (np. Gdansk)" list="stations-list">
+                    <input type="text" id="route-to" placeholder="Dokąd? (np. Lebork)" list="stations-list">
                 </div>
                 <datalist id="stations-list"></datalist>
                 
-                <div style="display: flex; gap: 10px;">
-                    <select id="discount-select">
-                        <option value="0">Normalny</option>
+                <div style="display: flex; gap: 8px;">
+                    <select id="discount-select" style="flex: 2;">
+                        <option value="0">Bilet Normalny</option>
                         <option value="0.51">Student (51%)</option>
-                        <option value="0.37">KDR (37%)</option>
+                        <option value="0.37">KDR / Dziecko (37%)</option>
                         <option value="0.33">Nauczyciel (33%)</option>
                         <option value="0.93">Niewidomy (93%)</option>
                     </select>
-                    <input type="number" id="trip-amount" step="0.01" placeholder="Kwota">
+                    <input type="number" id="trip-amount" placeholder="Cena" style="flex: 1; font-weight: bold; color: var(--success);">
                 </div>
                 
-                <div style="display: flex; gap: 10px;">
-                    <button onclick="window.calculatePrice()" style="background: var(--accent);">🧮 OBLICZ</button>
-                    <button onclick="window.addNewTrip()" style="background: var(--success);">✅ ZAPISZ</button>
-                </div>
+                <button onclick="window.calculatePrice()" style="background: var(--accent); margin-top: 5px;">🧮 Oblicz trasę i cenę</button>
+                <button onclick="window.addNewTrip()" style="background: var(--success);">✅ Zapisz w historii</button>
                 <p id="calc-info" style="font-size: 11px; text-align: center; color: #94a3b8; margin: 0;"></p>
             </div>
         </section>
 
-        <section class="card">
-            <h3 style="font-size: 14px; opacity: 0.7; margin-bottom: 10px;">📜 Historia</h3>
-            <div id="history-list" class="history-list">Ładowanie...</div>
-        </section>
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 10px;">
+            <h3 style="font-size: 14px; opacity: 0.6; margin:0;">📜 OSTATNIE PRZEJAZDY</h3>
+            <span style="font-size: 10px; opacity: 0.4;">SWIPE W LEWO BY USUNĄĆ</span>
+        </div>
+        <div id="history-list" class="history-list">
+            </div>
+    </div>
+
+    <div id="list-modal" class="modal">
+        <div class="modal-header">
+            <h3>📋 Baza Stacji (Punkt 0: Gdańsk)</h3>
+            <button onclick="window.closeStationList()" style="width: auto; background: var(--danger);">X</button>
+        </div>
+        <button onclick="window.syncAllStationsToServer()" style="background: #ca8a04; margin-bottom: 20px;">⬆️ Wyślij całą listę na serwer</button>
+        <div id="full-station-grid" class="station-grid">
+            </div>
     </div>
 
     <div id="map-modal" class="modal">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h3>🗺️ Interaktywna Sieć</h3>
-            <button onclick="window.closeMap()" style="width: auto; background: #ef4444;">Zamknij X</button>
+        <div class="modal-header">
+            <h3>🗺️ Interaktywna Mapa</h3>
+            <button onclick="window.closeMap()" style="width: auto; background: var(--danger);">X</button>
         </div>
         
         <svg id="svg-map" viewBox="0 0 400 600"></svg>
 
-        <div class="legend">
-            <div class="legend-i"><div class="dot" style="background:#475569"></div> 0</div>
-            <div class="legend-i"><div class="dot" style="background:#f97316"></div> 1-4</div>
-            <div class="legend-i"><div class="dot" style="background:#ef4444"></div> 5-19</div>
-            <div class="legend-i"><div class="dot" style="background:#7f1d1d; border:1px solid red"></div> 20+ przejazdów</div>
-        </div>
-
-        <div class="card" style="margin-top: 20px;">
-            <h4>➕ Dodaj punkt na mapie</h4>
-            <div style="display: grid; gap: 8px; margin-top: 10px;">
+        <div class="card" style="margin-top: 15px; background: rgba(0,0,0,0.4);">
+            <h4 style="margin-top:0; font-size: 14px;">➕ Dodaj nową kropkę na mapie</h4>
+            <div style="display: grid; gap: 8px;">
                 <input type="text" id="new-st-name" placeholder="Nazwa stacji">
-                <input type="number" id="new-st-km" placeholder="Km od Gdańska Gł. (np. 44)">
-                <input type="text" id="new-st-parent" placeholder="Z jakiej stacji wychodzi? (rodzic)" list="stations-list">
-                <div style="display: flex; gap: 5px;">
-                    <input type="number" id="new-st-x" placeholder="Poz. X (0-400)">
-                    <input type="number" id="new-st-y" placeholder="Poz. Y (0-600)">
+                <div style="display: flex; gap: 8px;">
+                    <input type="number" id="new-st-km" placeholder="Km od Gdańska">
+                    <input type="text" id="new-st-parent" placeholder="Rodzic (linia od)" list="stations-list">
                 </div>
-                <button onclick="window.saveNewStation()">DODAJ STACJĘ DO SYSTEMU</button>
+                <div style="display: flex; gap: 8px;">
+                    <input type="number" id="new-st-x" placeholder="X (0-400)">
+                    <input type="number" id="new-st-y" placeholder="Y (0-600)">
+                </div>
+                <button onclick="window.saveNewStation()" style="background: var(--success); font-size: 12px;">Zapisz stację w systemie</button>
             </div>
         </div>
-    </div>
-
-    <div id="list-modal" class="modal">
-        <button onclick="window.closeStationList()" style="margin-bottom: 20px; background: #334155;">Powrót</button>
-        <div id="full-station-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;"></div>
     </div>
 
     <script type="module" src="./app.js"></script>
