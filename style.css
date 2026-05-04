@@ -28,6 +28,7 @@ body {
     gap: 15px;
 }
 
+/* KARTY I SZKŁO */
 .card {
     background: var(--glass);
     padding: 20px;
@@ -35,63 +36,76 @@ body {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
 }
 
-/* NAPRAWIONY GRADIENT ZYSKU */
+/* GRADIENT I PASEK ZYSKU */
 #earned-val {
     font-size: 48px;
     font-weight: 900;
     text-align: center;
     background: linear-gradient(to bottom, #ffffff, #cbd5e1);
-    background-clip: text;
     -webkit-background-clip: text;
+    background-clip: text;
     color: transparent;
-    -webkit-text-fill-color: transparent;
     display: block;
-    margin: 10px 0;
+    margin: 5px 0;
 }
 
-/* MAPA I EDYTOR */
-#svg-map, #svg-heatmap {
+.progress-container {
+    background: rgba(0, 0, 0, 0.4);
+    height: 14px;
+    border-radius: 20px;
+    overflow: hidden;
+    margin: 10px 0;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+#bar-fill {
+    background: linear-gradient(90deg, #6366f1, #a855f7);
+    height: 100%;
+    width: 0%;
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 15px rgba(99, 102, 241, 0.5);
+}
+
+/* MAPY I INTERAKCJA */
+.map-wrapper {
+    position: relative;
     width: 100%;
     height: 65vh;
     background: var(--bg-dark);
     border-radius: 20px;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    cursor: crosshair;
+    overflow: hidden; /* Ważne przy zoomowaniu! */
+    touch-action: none;
 }
 
-/* Style linii mapy sieci */
+svg {
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+}
+
+svg:active {
+    cursor: grabbing;
+}
+
+/* LINIE I PUNKTY NA MAPIE */
 .map-link {
     stroke: #6366f1;
     stroke-width: 3;
     stroke-linecap: round;
-    opacity: 0.4;
+    opacity: 0.3;
 }
 
-/* Style linii natężenia (Heatmap) */
 .heatmap-link {
     stroke-width: 6;
     stroke-linecap: round;
     transition: stroke 0.5s ease;
 }
 
-/* TOOLTIP WSPÓŁRZĘDNYCH */
-#coord-info {
-    position: absolute;
-    background: var(--warning);
-    color: #000;
-    padding: 3px 10px;
-    border-radius: 6px;
-    font-size: 13px;
-    font-weight: 900;
-    pointer-events: none;
-    display: none;
-    z-index: 2000;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-}
-
-/* HISTORIA (BEZ OPCJI USUWANIA) */
+/* HISTORIA PRZEJAZDÓW */
 #history-list {
     display: flex;
     flex-direction: column;
@@ -99,46 +113,55 @@ body {
 }
 
 .history-item {
-    background: rgba(255, 255, 255, 0.08);
-    padding: 18px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 16px;
+    border-radius: 18px;
+    border-left: 5px solid var(--accent);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-radius: 18px;
-    border-left: 5px solid var(--accent);
+    cursor: pointer;
+    transition: all 0.2s ease;
 }
 
-/* FORMULARZE */
+.history-item:hover {
+    background: rgba(255, 255, 255, 0.12);
+    transform: translateX(5px);
+}
+
+/* FORMULARZE I INPUTY */
 input, select, button {
     width: 100%;
-    padding: 15px;
-    border-radius: 14px;
+    padding: 14px;
+    border-radius: 12px;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(15, 23, 42, 0.6);
-    color: white;
-    font-size: 15px;
+    background: rgba(15, 23, 42, 0.8);
+    color: #fff;
+    font-size: 14px;
     outline: none;
     box-sizing: border-box;
 }
 
+input:focus {
+    border-color: var(--accent);
+    background: rgba(30, 41, 59, 1);
+}
+
 button {
     background: var(--accent);
+    color: white;
     font-weight: 800;
     border: none;
     cursor: pointer;
     text-transform: uppercase;
-    transition: transform 0.1s, filter 0.2s;
+    letter-spacing: 1px;
 }
 
 button:active {
-    transform: scale(0.95);
+    transform: scale(0.97);
 }
 
-button:hover {
-    filter: brightness(1.1);
-}
-
-/* MODALE */
+/* MODALE (MAPA, BAZA) */
 .modal {
     display: none;
     position: fixed;
@@ -157,57 +180,30 @@ button:hover {
     display: flex;
 }
 
-/* LEGENDA NATĘŻENIA */
-.legend {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    margin-top: 15px;
+/* TOOLTIP WSPÓŁRZĘDNYCH */
+#coord-info {
+    position: absolute;
+    background: var(--warning);
+    color: #000;
+    padding: 4px 10px;
+    border-radius: 8px;
     font-size: 12px;
-    font-weight: 600;
-    background: rgba(0,0,0,0.4);
-    padding: 12px;
-    border-radius: 15px;
+    font-weight: 900;
+    pointer-events: none;
+    display: none;
+    z-index: 2000;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.4);
 }
 
-.leg-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.box {
-    width: 14px;
-    height: 14px;
-    border-radius: 4px;
-}
-
-/* PASEK POSTĘPU */
-.progress-container {
-    background: rgba(0, 0, 0, 0.3);
-    height: 14px;
-    border-radius: 10px;
-    overflow: hidden;
-    margin-bottom: 5px;
-}
-
-#bar-fill {
-    background: linear-gradient(90deg, #6366f1, #a855f7);
-    height: 100%;
-    width: 0%;
-    transition: width 1s ease-in-out;
-}
-
-/* WYSZUKIWARKA W BAZIE */
-#station-search {
-    border-color: var(--accent);
-    margin-bottom: 15px;
-}
-
+/* WYSZUKIWARKA I BAZA */
 .station-card {
     background: rgba(255,255,255,0.05);
     padding: 12px;
-    border-radius: 14px;
-    border-bottom: 3px solid var(--accent);
-    font-size: 13px;
+    border-radius: 12px;
+    border-bottom: 2px solid var(--accent);
+}
+
+#calc-info {
+    font-weight: 600;
+    letter-spacing: 0.5px;
 }
