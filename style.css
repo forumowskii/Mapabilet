@@ -1,4 +1,4 @@
-/* GŁÓWNE USTAWIENIA */
+/* --- ZMIENNE I PODSTAWA --- */
 :root {
     --accent: #818cf8;
     --success: #22c55e;
@@ -6,6 +6,12 @@
     --warning: #facc15;
     --bg-dark: #0b0f1a;
     --glass: rgba(30, 41, 59, 0.7);
+    --border: rgba(255, 255, 255, 0.1);
+}
+
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
 }
 
 body {
@@ -14,10 +20,11 @@ body {
     color: #f8fafc;
     font-family: 'Inter', sans-serif;
     margin: 0;
-    padding: 20px;
+    padding: 0;
     display: flex;
     justify-content: center;
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
 .app-container {
@@ -26,30 +33,105 @@ body {
     display: flex;
     flex-direction: column;
     gap: 15px;
+    padding: 75px 20px 30px 20px;
 }
 
-/* KARTY I SZKŁO */
+/* --- LEWE MENU (HAMBURGER) --- */
+.menu-trigger {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 1100;
+    font-size: 26px;
+    cursor: pointer;
+    background: var(--glass);
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+}
+
+.side-menu {
+    position: fixed;
+    top: 0;
+    left: -300px;
+    width: 280px;
+    height: 100%;
+    background: #0f172a;
+    z-index: 1200;
+    transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    padding: 40px 20px;
+    border-right: 1px solid var(--accent);
+    box-shadow: 15px 0 30px rgba(0,0,0,0.5);
+}
+
+.side-menu.active {
+    left: 0;
+}
+
+.menu-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.7);
+    z-index: 1150;
+    display: none;
+    backdrop-filter: blur(5px);
+}
+
+.menu-overlay.active {
+    display: block;
+}
+
+.menu-item {
+    padding: 16px;
+    margin-bottom: 12px;
+    border-radius: 14px;
+    background: rgba(255,255,255,0.05);
+    cursor: pointer;
+    font-weight: 700;
+    transition: 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    border: 1px solid transparent;
+}
+
+.menu-item:hover {
+    background: rgba(129, 140, 248, 0.2);
+    border-color: var(--accent);
+    transform: translateX(5px);
+}
+
+/* --- KARTY (GLASSMORPHISM) --- */
 .card {
     background: var(--glass);
     padding: 20px;
-    border-radius: 24px;
+    border-radius: 26px;
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    border: 1px solid var(--border);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
 }
 
-/* GRADIENT I PASEK ZYSKU */
 #earned-val {
-    font-size: 48px;
+    font-size: 52px;
     font-weight: 900;
     text-align: center;
-    background: linear-gradient(to bottom, #ffffff, #cbd5e1);
+    background: linear-gradient(to bottom, #ffffff, #94a3b8);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
     display: block;
     margin: 5px 0;
+    letter-spacing: -2px;
 }
 
 .progress-container {
@@ -66,83 +148,24 @@ body {
     height: 100%;
     width: 0%;
     transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 0 15px rgba(99, 102, 241, 0.5);
+    box-shadow: 0 0 15px var(--accent);
 }
 
-/* MAPY I INTERAKCJA */
-.map-wrapper {
-    position: relative;
-    width: 100%;
-    height: 65vh;
-    background: var(--bg-dark);
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    overflow: hidden; /* Ważne przy zoomowaniu! */
-    touch-action: none;
-}
-
-svg {
-    width: 100%;
-    height: 100%;
-    cursor: grab;
-}
-
-svg:active {
-    cursor: grabbing;
-}
-
-/* LINIE I PUNKTY NA MAPIE */
-.map-link {
-    stroke: #6366f1;
-    stroke-width: 3;
-    stroke-linecap: round;
-    opacity: 0.3;
-}
-
-.heatmap-link {
-    stroke-width: 6;
-    stroke-linecap: round;
-    transition: stroke 0.5s ease;
-}
-
-/* HISTORIA PRZEJAZDÓW */
-#history-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.history-item {
-    background: rgba(255, 255, 255, 0.05);
-    padding: 16px;
-    border-radius: 18px;
-    border-left: 5px solid var(--accent);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.history-item:hover {
-    background: rgba(255, 255, 255, 0.12);
-    transform: translateX(5px);
-}
-
-/* FORMULARZE I INPUTY */
+/* --- FORMULARZE I PRZYCISKI --- */
 input, select, button {
     width: 100%;
-    padding: 14px;
-    border-radius: 12px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 15px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
     background: rgba(15, 23, 42, 0.8);
     color: #fff;
-    font-size: 14px;
+    font-size: 15px;
     outline: none;
     box-sizing: border-box;
+    transition: 0.2s;
 }
 
-input:focus {
+input:focus, select:focus {
     border-color: var(--accent);
     background: rgba(30, 41, 59, 1);
 }
@@ -158,52 +181,120 @@ button {
 }
 
 button:active {
-    transform: scale(0.97);
+    transform: scale(0.95);
 }
 
-/* MODALE (MAPA, BAZA) */
+button:hover {
+    filter: brightness(1.1);
+}
+
+/* --- MAPY --- */
+.map-wrapper {
+    position: relative;
+    width: 100%;
+    height: 60vh;
+    background: var(--bg-dark);
+    border-radius: 24px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+svg {
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+    touch-action: none;
+}
+
+svg:active {
+    cursor: grabbing;
+}
+
+/* --- HISTORIA --- */
+.history-item {
+    background: rgba(255, 255, 255, 0.07);
+    padding: 16px;
+    border-radius: 20px;
+    border-left: 5px solid var(--accent);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    transition: 0.2s;
+}
+
+.history-item:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* --- MODALE --- */
 .modal {
     display: none;
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    top: 0; left: 0; width: 100%; height: 100%;
     background: #0f172a;
-    z-index: 1000;
+    z-index: 1300;
     flex-direction: column;
     padding: 20px;
-    box-sizing: border-box;
 }
 
 .modal.active {
     display: flex;
 }
 
-/* TOOLTIP WSPÓŁRZĘDNYCH */
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+/* --- GALERIA I ZOOM --- */
+#gallery-list {
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding-bottom: 40px;
+}
+
+.schemat-thumb {
+    width: 100%;
+    border-radius: 18px;
+    border: 2px solid var(--border);
+    cursor: pointer;
+    transition: 0.3s ease;
+}
+
+.schemat-thumb:hover {
+    border-color: var(--accent);
+    transform: scale(1.02);
+}
+
+/* --- TOOLTIP KOORDYNATÓW --- */
 #coord-info {
     position: absolute;
     background: var(--warning);
     color: #000;
-    padding: 4px 10px;
+    padding: 5px 12px;
     border-radius: 8px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 900;
     pointer-events: none;
     display: none;
-    z-index: 2000;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+    z-index: 4000;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.5);
 }
 
-/* WYSZUKIWARKA I BAZA */
+/* --- DODATKI --- */
 .station-card {
     background: rgba(255,255,255,0.05);
-    padding: 12px;
-    border-radius: 12px;
-    border-bottom: 2px solid var(--accent);
+    padding: 15px;
+    border-radius: 15px;
+    border-bottom: 3px solid var(--accent);
 }
 
-#calc-info {
-    font-weight: 600;
-    letter-spacing: 0.5px;
+/* PhotoSwipe Fix */
+.pswp__bg {
+    background: #000 !important;
 }
