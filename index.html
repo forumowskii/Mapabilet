@@ -303,10 +303,6 @@
                         <option value="0.51">Student (51%)</option>
                         <option value="0">Normalny (100%)</option>
                     </select>
-                    <select id="network-select">
-                        <option value="skm" selected>SKM</option>
-                        <option value="kolej_plus">Kolej+</option>
-                    </select>
                 </div>
 
                 <div style="display: flex; gap: 8px;">
@@ -334,7 +330,7 @@
             <svg id="svg-map" viewBox="0 0 400 600"></svg>
         </div>
         <div class="card" style="margin-top:15px; background:rgba(0,0,0,0.4); padding: 15px;">
-            <div style="display:grid; gap: 8px;">
+            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px;">
                 <input type="text" id="new-st-name" placeholder="Nazwa stacji" style="grid-column: span 3;">
                 <input type="number" id="new-st-km" placeholder="KM">
                 <input type="number" id="new-st-x" placeholder="Poz. X">
@@ -350,17 +346,9 @@
             <h3 style="margin:0">🔥 Mapa Natężenia Ruchu</h3>
             <button onclick="window.closeHeatmap()" style="width:auto; background:var(--danger); padding:8px 20px;">ZAMKNIJ</button>
         </div>
-
-        <div style="display:flex; gap:10px; margin-bottom: 15px;">
-            <button onclick="window.setHeatFilter('all')" style="width:auto; padding:10px 14px; background:#475569;">CAŁA SIEĆ</button>
-            <button onclick="window.setHeatFilter('skm')" style="width:auto; padding:10px 14px; background:#334155;">SKM</button>
-            <button onclick="window.setHeatFilter('kolej_plus')" style="width:auto; padding:10px 14px; background:#334155;">KOLEJ+</button>
-        </div>
-
         <div class="map-wrapper">
             <svg id="svg-heatmap" viewBox="0 0 400 600"></svg>
         </div>
-
         <div style="display: flex; justify-content: center; gap: 15px; margin-top: 20px; font-size: 11px; font-weight: 800;">
             <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#475569; border-radius:3px;"></div> 0</div>
             <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#facc15; border-radius:3px;"></div> 1-4</div>
@@ -378,16 +366,6 @@
             <img src="img/schemat1.jpg" class="schemat-thumb" onclick="window.fullView(0)" alt="Schemat 1">
             <img src="img/schemat2.jpg" class="schemat-thumb" onclick="window.fullView(1)" alt="Schemat 2">
             <img src="img/schemat3.jpg" class="schemat-thumb" onclick="window.fullView(2)" alt="Schemat 3">
-
-            <div class="card" style="margin-top: 10px; background:rgba(0,0,0,0.35); padding: 12px;">
-                <div style="display:grid; gap: 8px;">
-                    <input type="text" id="new-schemat-title" placeholder="Nazwa linku (np. SKM schemat PDF)">
-                    <input type="url" id="new-schemat-url" placeholder="URL (https://...) ">
-                    <button onclick="window.addSchematLink()" style="background: var(--accent);">DODAJ LINK</button>
-                </div>
-            </div>
-
-            <div id="schemat-links" style="margin-top: 12px; display:grid; gap:10px;"></div>
             <p style="text-align:center; opacity:0.3; font-size:11px; margin-top:20px;">Wgraj więcej zdjęć do folderu img/</p>
         </div>
     </div>

@@ -25,8 +25,6 @@ let stations = {};
 let tripsData = [];
 let gridActive = false;
 
-let heatFilter = 'all';
-
 // Stany Zoomu
 let mapState = { x: 0, y: 0, scale: 1 };
 let heatState = { x: 0, y: 0, scale: 1 };
@@ -90,59 +88,10 @@ function setupSVGInteractions(svgId, state, renderFn) {
     svg.addEventListener('touchend', stop);
 }
 
-function buildAdjacency(stationsObj) {
-    const adj = {};
-    Object.keys(stationsObj).forEach(name => {
-        if (!adj[name]) adj[name] = new Set();
-        const s = stationsObj[name];
-        if (s && s.parent && stationsObj[s.parent]) {
-            if (!adj[s.parent]) adj[s.parent] = new Set();
-            adj[name].add(s.parent);
-            adj[s.parent].add(name);
-        }
-    });
-    return adj;
-}
-
-function findPathStations(adj, from, to) {
-    if (!from || !to) return null;
-    if (from === to) return [from];
-    if (!adj[from] || !adj[to]) return null;
-
-    const q = [from];
-    const prev = { [from]: null };
-    let qi = 0;
-
-    while (qi < q.length) {
-        const cur = q[qi++];
-        const neighbors = adj[cur];
-        if (!neighbors) continue;
-
-        for (const n of neighbors) {
-            if (prev[n] !== undefined) continue;
-            prev[n] = cur;
-            if (n === to) {
-                const path = [to];
-                let p = cur;
-                while (p !== null) {
-                    path.push(p);
-                    p = prev[p];
-                }
-                path.reverse();
-                return path;
-            }
-            q.push(n);
-        }
-    }
-
-    return null;
-}
-
 // --- RENDERING MAP ---
 function renderMapElements(svgId, state, mode = 'base') {
     const svg = document.getElementById(svgId);
     svg.innerHTML = "";
-
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     g.setAttribute("transform", `translate(${state.x},${state.y}) scale(${state.scale})`);
 
@@ -168,29 +117,16 @@ function renderMapElements(svgId, state, mode = 'base') {
 
     // 2. Połączenia (Heatmap logic)
     const usage = {};
-    if(mode === 'heat') {
-        const adj = buildAdjacency(stations);
-        tripsData.forEach(t => {
-            const tn = (t.network || 'skm');
-            if (heatFilter !== 'all' && tn !== heatFilter) return;
-            const path = findPathStations(adj, t.od, t.do);
-            if (!path || path.length < 2) return;
-            for (let i = 0; i < path.length - 1; i++) {
-                const k = [path[i], path[i + 1]].sort().join('|');
-                usage[k] = (usage[k] || 0) + 1;
-            }
-        });
-    }
+    if(mode === 'heat') tripsData.forEach(t => { const k = [t.od, t.do].sort().join('|'); usage[k] = (usage[k] || 0) + 1; });
 
     Object.keys(stations).forEach(name => {
         const s = stations[name];
         if(s.parent && stations[s.parent]) {
             const p = stations[s.parent];
-
             const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
             line.setAttribute("x1", s.x); line.setAttribute("y1", s.y);
             line.setAttribute("x2", p.x); line.setAttribute("y2", p.y);
-
+            
             if(mode === 'heat') {
                 const count = usage[[name, s.parent].sort().join('|')] || 0;
                 line.style.strokeWidth = 6; line.style.strokeLinecap = "round";
@@ -208,22 +144,13 @@ function renderMapElements(svgId, state, mode = 'base') {
         const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         dot.setAttribute("cx", s.x); dot.setAttribute("cy", s.y); dot.setAttribute("r", 4/state.scale);
         dot.setAttribute("fill", "#fff");
-        dot.style.pointerEvents = "all";
-        if (mode === 'base') {
-            dot.style.cursor = 'pointer';
-            dot.onclick = () => window.pickStationForRoute(name);
-        }
         
-        let txt = null;
-        if (state.scale >= 0.85) {
-            txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            txt.setAttribute("x", s.x + (8/state.scale)); txt.setAttribute("y", s.y + (4/state.scale));
-            txt.setAttribute("fill", "#94a3b8"); txt.setAttribute("font-size", (10/state.scale)+"px");
-            txt.textContent = name.toUpperCase();
-        }
+        const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        txt.setAttribute("x", s.x + (8/state.scale)); txt.setAttribute("y", s.y + (4/state.scale));
+        txt.setAttribute("fill", "#94a3b8"); txt.setAttribute("font-size", (10/state.scale)+"px");
+        txt.textContent = name.toUpperCase();
         
-        g.appendChild(dot);
-        if (txt) g.appendChild(txt);
+        g.appendChild(dot); g.appendChild(txt);
     });
 
     svg.appendChild(g);
@@ -249,38 +176,12 @@ window.addNewTrip = () => {
     const t = document.getElementById('route-to').value.toLowerCase();
     const zl = parseFloat(document.getElementById('trip-amount').value);
     const nr = document.getElementById('regio-num').value;
-    const networkEl = document.getElementById('network-select');
-    const network = networkEl ? networkEl.value : 'skm';
     if(!f || !t || isNaN(zl)) return;
 
     push(tripsRef, {
         od: f, do: t, zl: zl, nr: nr,
-        network: network,
         data: new Date().toLocaleDateString('pl-PL')
     }).then(() => set(statsRef, earnedSoFar + zl));
-};
-
-window.setHeatFilter = (v) => {
-    heatFilter = v;
-    renderHeat();
-};
-
-window.pickStationForRoute = (name) => {
-    const fromEl = document.getElementById('route-from');
-    const toEl = document.getElementById('route-to');
-    if (!fromEl || !toEl) return;
-
-    const n = (name || '').toUpperCase();
-    const f = (fromEl.value || '').trim();
-    const t = (toEl.value || '').trim();
-
-    if (!f || (f && t)) {
-        fromEl.value = n;
-        toEl.value = '';
-        return;
-    }
-
-    toEl.value = n;
 };
 
 window.saveNewStation = () => {
@@ -363,58 +264,3 @@ const renderHeat = () => renderMapElements('svg-heatmap', heatState, 'heat');
 
 setupSVGInteractions('svg-map', mapState, renderBase);
 setupSVGInteractions('svg-heatmap', heatState, renderHeat);
-
-function getSchematLinks() {
-    try {
-        const raw = localStorage.getItem('schematLinks');
-        const parsed = raw ? JSON.parse(raw) : [];
-        return Array.isArray(parsed) ? parsed : [];
-    } catch {
-        return [];
-    }
-}
-
-function setSchematLinks(list) {
-    try {
-        localStorage.setItem('schematLinks', JSON.stringify(list));
-    } catch {}
-}
-
-function renderSchematLinks() {
-    const host = document.getElementById('schemat-links');
-    if (!host) return;
-    host.innerHTML = '';
-    const links = getSchematLinks();
-    links.forEach((l, idx) => {
-        const a = document.createElement('a');
-        a.href = l.url;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        a.style.cssText = 'display:block;padding:12px 14px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);color:#fff;text-decoration:none;font-weight:800;';
-        a.textContent = (l.title || `LINK ${idx + 1}`).toUpperCase();
-        host.appendChild(a);
-    });
-}
-
-window.addSchematLink = () => {
-    const titleEl = document.getElementById('new-schemat-title');
-    const urlEl = document.getElementById('new-schemat-url');
-    if (!titleEl || !urlEl) return;
-    const title = (titleEl.value || '').trim();
-    const url = (urlEl.value || '').trim();
-    if (!title || !url) return;
-
-    const links = getSchematLinks();
-    links.unshift({ title, url });
-    setSchematLinks(links.slice(0, 20));
-
-    titleEl.value = '';
-    urlEl.value = '';
-    renderSchematLinks();
-};
-
-const _openGallery = window.openGallery;
-window.openGallery = () => {
-    _openGallery();
-    renderSchematLinks();
-};
