@@ -8,6 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     
     <link rel="stylesheet" href="https://unpkg.com/photoswipe@5.4.3/dist/photoswipe.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
     <style>
         :root {
@@ -257,19 +258,63 @@
     <div class="menu-overlay" id="menu-overlay" onclick="window.toggleMenu()"></div>
     
     <nav class="side-menu" id="side-menu">
-        <h2 style="margin-bottom: 30px; font-weight: 800; color: var(--accent);">REGIO MENU</h2>
-        <div class="menu-item" onclick="window.closeMenu();">🏠 Pulpit</div>
-        <div class="menu-item" onclick="window.openGallery();">🗺️ Schematy Tras</div>
-        <div class="menu-item" onclick="window.openSettings();">⚙️ Ustawienia Bazy</div>
-        <div style="position: absolute; bottom: 20px; left: 20px; font-size: 11px; opacity: 0.3;">
-            RegioPomorskie v9.0 Build 2026
+        <div class="side-menu-header">
+            <div class="circle-icon">
+                <i class="fa-solid fa-bus"></i>
+            </div>
+            <div class="header-text">
+                <div class="brand-name">Albatrosova</div>
+                <div class="location-selector" onclick="window.toggleCityDropdown(event)">
+                    RegioPomorskie Kalkulator <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
+                </div>
+                <!-- Dropdown Miast -->
+                <div id="city-dropdown" class="city-dropdown">
+                    <div class="city-option" onclick="window.openCity('gdansk')">Gdańsk</div>
+                    <div class="city-option disabled">Warszawa <small>(Soon)</small></div>
+                    <div class="city-option disabled">Poznań <small>(Soon)</small></div>
+                </div>
+            </div>
+            <div class="close-menu-btn" onclick="window.toggleMenu()">×</div>
+        </div>
+
+        <div class="menu-items-container">
+            <div class="menu-item" onclick="window.closeMenu();">
+                <i class="fa-solid fa-calendar-days"></i> Strona Główna
+            </div>
+            <div class="menu-item" onclick="window.openGallery();">
+                <i class="fa-solid fa-clock-rotate-left"></i> Schematy
+            </div>
+            <div class="menu-item" onclick="window.openMap();">
+                <i class="fa-solid fa-location-dot"></i> Mapa
+            </div>
+            <div class="menu-item" onclick="window.openTariff();">
+                <i class="fa-solid fa-newspaper"></i> Bilet Taryfa pomorska
+            </div>
+            <div class="menu-item" onclick="window.openSettings();">
+                <i class="fa-solid fa-gear"></i> Ustawienia bazy
+            </div>
+            <div class="menu-item" onclick="window.openFullHistory();">
+                <i class="fa-solid fa-list-ul"></i> Pełna Historia
+            </div>
+        </div>
+
+        <div class="side-menu-footer">
+            <div class="social-icons">
+                <i class="fa-brands fa-instagram"></i>
+                <i class="fa-brands fa-github"></i>
+                <i class="fa-brands fa-discord"></i>
+                <i class="fa-regular fa-envelope"></i>
+            </div>
         </div>
     </nav>
 
     <div class="app-container">
         <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
             <h2 style="margin:0; font-weight: 800; padding-left: 50px; letter-spacing: -1px;">RegioPomorskie</h2>
-            <div style="background: var(--success); padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);">ONLINE</div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <div id="station-count-badge" style="background: var(--accent); padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(129, 140, 248, 0.3);">STACJE: 0</div>
+                <div style="background: var(--success); padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);">ONLINE</div>
+            </div>
         </header>
 
         <section class="card">
@@ -291,10 +336,15 @@
         <section class="card">
             <div style="display: grid; gap: 10px;">
                 <div style="display: flex; gap: 8px;">
-                    <input type="text" id="route-from" placeholder="Skąd?" list="stations-list">
-                    <input type="text" id="route-to" placeholder="Dokąd?" list="stations-list">
+                    <div class="search-wrapper">
+                        <input type="text" id="route-from" placeholder="Skąd?" oninput="window.handleSearch(event, 'from')" autocomplete="off">
+                        <div id="results-from" class="search-results"></div>
+                    </div>
+                    <div class="search-wrapper">
+                        <input type="text" id="route-to" placeholder="Dokąd?" oninput="window.handleSearch(event, 'to')" autocomplete="off">
+                        <div id="results-to" class="search-results"></div>
+                    </div>
                 </div>
-                <datalist id="stations-list"></datalist>
 
                 <div style="display: flex; gap: 8px;">
                     <input type="text" id="regio-num" placeholder="Nr pociągu (Regio)" style="flex: 1;">
@@ -355,6 +405,13 @@
             <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#f97316; border-radius:3px;"></div> 5-19</div>
             <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#ef4444; border-radius:3px;"></div> 20+</div>
         </div>
+
+        <div class="card" style="margin-top: 20px; background: rgba(255, 255, 255, 0.05);">
+            <h4 style="margin: 0 0 15px 0; color: var(--warning); font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">🔥 Najcieplejsze Trasy</h4>
+            <div id="hot-routes-list" style="display: grid; gap: 10px;">
+                <!-- Tutaj wpadną statystyki z JS -->
+            </div>
+        </div>
     </div>
 
     <div id="gallery-modal" class="modal">
@@ -362,11 +419,17 @@
             <h3 style="margin:0">🖼️ Schematy i Mapy PNG</h3>
             <button onclick="window.closeGallery()" style="width:auto; background:var(--danger); padding:8px 20px;">WSTECZ</button>
         </div>
+        
+        <div class="card" style="margin-bottom: 20px; background: rgba(0,0,0,0.3);">
+            <div style="display: grid; gap: 8px;">
+                <input type="text" id="new-gallery-title" placeholder="Tytuł schematu">
+                <input type="text" id="new-gallery-src" placeholder="Link do zdjęcia (URL)">
+                <button onclick="window.addNewGalleryItem()" style="background: var(--success);">DODAJ NOWY SCHEMAT</button>
+            </div>
+        </div>
+
         <div id="gallery-list" style="overflow-y: auto; padding-right: 5px;">
-            <img src="img/schemat1.jpg" class="schemat-thumb" onclick="window.fullView(0)" alt="Schemat 1">
-            <img src="img/schemat2.jpg" class="schemat-thumb" onclick="window.fullView(1)" alt="Schemat 2">
-            <img src="img/schemat3.jpg" class="schemat-thumb" onclick="window.fullView(2)" alt="Schemat 3">
-            <p style="text-align:center; opacity:0.3; font-size:11px; margin-top:20px;">Wgraj więcej zdjęć do folderu img/</p>
+            <!-- Dynamiczna lista schematów -->
         </div>
     </div>
 
@@ -377,6 +440,72 @@
         </div>
         <input type="text" id="station-search" placeholder="🔍 Szukaj stacji w bazie..." oninput="window.filterStations()">
         <div id="full-station-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; overflow-y:auto; margin-top:15px; padding-bottom:30px;"></div>
+    </div>
+
+    <div id="history-modal" class="modal">
+        <div class="modal-header">
+            <h3 style="margin:0">📜 Pełna Historia Tras</h3>
+            <button onclick="window.closeFullHistory()" style="width:auto; background:var(--danger); padding:8px 20px;">ZAMKNIJ</button>
+        </div>
+        <div style="overflow-x: auto; flex-grow: 1;">
+            <table class="history-table">
+                <thead>
+                    <tr>
+                        <th>Dzień</th>
+                        <th>Pociąg</th>
+                        <th>Skąd</th>
+                        <th>Dokąd</th>
+                        <th>Cena</th>
+                    </tr>
+                </thead>
+                <tbody id="full-history-table-body">
+                    <!-- Dane z JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- MODAL TARYFA / BILET (STYL JAKDOJADE) -->
+    <div id="tariff-modal" class="modal" style="background: #f3f4f6;">
+        <div class="modal-header" style="color: #000;">
+            <h3 style="margin:0">Bilet Aktywny</h3>
+            <button onclick="window.closeTariff()" style="width:auto; background: #374151; padding:8px 20px;">ZAMKNIJ</button>
+        </div>
+        
+        <div class="ticket-container">
+            <div class="ticket-top-bar">ULGOWY</div>
+            <div class="ticket-main-card">
+                <div class="hologram-overlay"></div>
+                <div style="font-size: 14px; margin-bottom: 20px; opacity: 0.8;">Metropolia GZM<br>(ZTM)</div>
+                <div id="ticket-countdown" class="ticket-timer">20</div>
+                <div style="font-size: 18px; font-weight: 600;">minut</div>
+            </div>
+            <div class="ticket-price-box">
+                <span id="ticket-price-val">2,00</span> <small>zł</small>
+            </div>
+            
+            <div class="ticket-controls">
+                <p style="font-size: 11px; color: #6b7280; text-align: center; margin-top: 10px;">Ważny przez 20 minut od momentu skasowania (z możliwością przesiadek).</p>
+            </div>
+
+            <div class="qr-section">
+                <img id="ticket-qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=AlbatrosovaTicket2026" alt="QR Code">
+                <div style="margin-top: 10px;">
+                    <input type="text" id="custom-qr-data" placeholder="Treść kodu QR..." oninput="window.updateQRCode()" style="background: #f9fafb; color: #374151; border: 1px solid #d1d5db; padding: 8px; font-size: 12px; width: 100%;">
+                </div>
+            </div>
+
+            <div class="ticket-info-list">
+                <div class="info-row" style="flex-direction: column; align-items: flex-start; gap: 5px;">
+                    <span style="font-size: 11px; opacity: 0.6; text-transform: uppercase;">Ważny od</span>
+                    <input type="datetime-local" id="ticket-start-time" onchange="window.startTicketCountdown()" style="font-weight: 800; font-size: 16px;">
+                </div>
+                <div class="info-row" style="flex-direction: column; align-items: flex-start; gap: 5px;">
+                    <span style="font-size: 11px; opacity: 0.6; text-transform: uppercase;">Ważny do</span>
+                    <span id="ticket-end-time-display" style="font-weight: 800; font-size: 16px; color: #000;">--:--:--</span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script type="module" src="./app.js"></script>
