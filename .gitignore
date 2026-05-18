@@ -1,0 +1,11 @@
+# Firebase secrets
+firebase-secrets.js
+
+# Local environment
+.env
+.env.local
+
+# Node modules
+node_modules/
+dist/
+.DS_Store

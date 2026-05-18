@@ -3,252 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>RegioPomorskie PRO</title>
+    <title>Licznik Regiopomorskie by Albatrosova</title>
+
+    <!-- PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Regio Licznik">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#166534">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3448/3448339.png">
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
     
     <link rel="stylesheet" href="https://unpkg.com/photoswipe@5.4.3/dist/photoswipe.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-
-    <style>
-        :root {
-            --accent: #818cf8;
-            --success: #22c55e;
-            --danger: #ef4444;
-            --warning: #facc15;
-            --bg-dark: #0b0f1a;
-            --glass: rgba(30, 41, 59, 0.7);
-        }
-
-        body {
-            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #4c1d95 100%);
-            background-attachment: fixed;
-            color: #f8fafc;
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            justify-content: center;
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        .app-container {
-            width: 100%;
-            max-width: 500px;
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            padding-top: 60px; /* Miejsce na hamburgera */
-        }
-
-        /* --- MENU BOCZNE (HAMBURGER) --- */
-        .menu-trigger {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            z-index: 1100;
-            font-size: 28px;
-            cursor: pointer;
-            background: var(--glass);
-            width: 45px;
-            height: 45px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.1);
-            backdrop-filter: blur(10px);
-        }
-
-        .side-menu {
-            position: fixed;
-            top: 0;
-            left: -300px;
-            width: 280px;
-            height: 100%;
-            background: #0f172a;
-            z-index: 1200;
-            transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            padding: 40px 20px;
-            box-sizing: border-box;
-            border-right: 1px solid var(--accent);
-            box-shadow: 10px 0 30px rgba(0,0,0,0.5);
-        }
-
-        .side-menu.active {
-            left: 0;
-        }
-
-        .menu-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
-            z-index: 1150;
-            display: none;
-        }
-
-        .menu-overlay.active {
-            display: block;
-        }
-
-        .menu-item {
-            padding: 16px;
-            margin-bottom: 12px;
-            border-radius: 14px;
-            background: rgba(255,255,255,0.05);
-            cursor: pointer;
-            font-weight: 600;
-            transition: 0.2s;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            border: 1px solid transparent;
-        }
-
-        .menu-item:hover {
-            background: rgba(129, 140, 248, 0.2);
-            border-color: var(--accent);
-        }
-
-        /* --- KARTY I INTERFEJS --- */
-        .card {
-            background: var(--glass);
-            padding: 20px;
-            border-radius: 24px;
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        #earned-val {
-            font-size: 48px;
-            font-weight: 900;
-            text-align: center;
-            background: linear-gradient(to bottom, #ffffff, #cbd5e1);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            display: block;
-            margin: 5px 0;
-        }
-
-        .progress-container {
-            background: rgba(0, 0, 0, 0.4);
-            height: 14px;
-            border-radius: 20px;
-            overflow: hidden;
-            margin: 10px 0;
-        }
-
-        #bar-fill {
-            background: linear-gradient(90deg, #6366f1, #a855f7);
-            height: 100%;
-            width: 0%;
-            transition: width 1s ease;
-        }
-
-        .map-wrapper {
-            position: relative;
-            width: 100%;
-            height: 60vh;
-            background: var(--bg-dark);
-            border-radius: 20px;
-            overflow: hidden;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        svg { width: 100%; height: 100%; touch-action: none; }
-
-        .history-item {
-            background: rgba(255, 255, 255, 0.06);
-            padding: 16px;
-            border-radius: 18px;
-            border-left: 4px solid var(--accent);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            cursor: pointer;
-        }
-
-        input, select, button {
-            width: 100%;
-            padding: 14px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background: rgba(15, 23, 42, 0.8);
-            color: #fff;
-            font-size: 14px;
-            outline: none;
-            box-sizing: border-box;
-        }
-
-        button {
-            background: var(--accent);
-            font-weight: 800;
-            border: none;
-            cursor: pointer;
-            text-transform: uppercase;
-        }
-
-        /* --- MODALE --- */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: #0f172a;
-            z-index: 1300;
-            flex-direction: column;
-            padding: 20px;
-            box-sizing: border-box;
-        }
-
-        .modal.active {
-            display: flex;
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        /* Galeria miniatur */
-        .schemat-thumb {
-            width: 100%;
-            border-radius: 15px;
-            margin-bottom: 15px;
-            border: 2px solid rgba(255,255,255,0.1);
-            cursor: pointer;
-            transition: 0.3s;
-        }
-
-        .schemat-thumb:hover {
-            border-color: var(--accent);
-            transform: scale(1.02);
-        }
-
-        #coord-info {
-            position: absolute;
-            background: var(--warning);
-            color: #000;
-            padding: 2px 8px;
-            border-radius: 5px;
-            font-size: 12px;
-            font-weight: bold;
-            pointer-events: none;
-            display: none;
-            z-index: 3000;
-        }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -259,58 +29,65 @@
     
     <nav class="side-menu" id="side-menu">
         <div class="side-menu-header">
-            <div class="circle-icon">
+            <div class="circle-icon" id="admin-bus-trigger" onclick="window.handleBusClick()">
                 <i class="fa-solid fa-bus"></i>
             </div>
             <div class="header-text">
                 <div class="brand-name">Albatrosova</div>
                 <div class="location-selector" onclick="window.toggleCityDropdown(event)">
-                    RegioPomorskie Kalkulator <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
+                    Bilet Miesięczny Pomorskie <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
                 </div>
                 <!-- Dropdown Miast -->
                 <div id="city-dropdown" class="city-dropdown">
-                    <div class="city-option" onclick="window.openCity('gdansk')">Gdańsk</div>
+                    <div class="city-option selected">Bilet Miesięczny Pomorskie</div>
+                    <div class="city-option gdansk-link" onclick="window.openCity('gdansk')">Gdańsk</div>
                     <div class="city-option disabled">Warszawa <small>(Soon)</small></div>
-                    <div class="city-option disabled">Poznań <small>(Soon)</small></div>
                 </div>
             </div>
             <div class="close-menu-btn" onclick="window.toggleMenu()">×</div>
         </div>
 
         <div class="menu-items-container">
-            <div class="menu-item" onclick="window.closeMenu();">
+            <div class="menu-item active" id="menu-home" onclick="window.closeAllModals();">
                 <i class="fa-solid fa-calendar-days"></i> Strona Główna
             </div>
-            <div class="menu-item" onclick="window.openGallery();">
+            <div class="menu-item" id="menu-gallery" onclick="window.openGallery();">
                 <i class="fa-solid fa-clock-rotate-left"></i> Schematy
             </div>
-            <div class="menu-item" onclick="window.openMap();">
+            <div class="menu-item" id="menu-map" onclick="window.openMap();">
                 <i class="fa-solid fa-location-dot"></i> Mapa
             </div>
-            <div class="menu-item" onclick="window.openTariff();">
+            <div class="menu-item" id="menu-heatmap" onclick="window.openHeatmap();">
+                <i class="fa-solid fa-fire"></i> Natężenie tras
+            </div>
+            <div class="menu-item" id="menu-tariff" onclick="window.openTariff();">
                 <i class="fa-solid fa-newspaper"></i> Bilet Taryfa pomorska
             </div>
-            <div class="menu-item" onclick="window.openSettings();">
+            <div class="menu-item" id="menu-settings" onclick="window.openSettings();">
                 <i class="fa-solid fa-gear"></i> Ustawienia bazy
             </div>
-            <div class="menu-item" onclick="window.openFullHistory();">
+            <div class="menu-item" id="menu-history" onclick="window.openFullHistory();">
                 <i class="fa-solid fa-list-ul"></i> Pełna Historia
             </div>
         </div>
 
         <div class="side-menu-footer">
+            <div style="text-align: center; font-size: 10px; opacity: 0.5; margin-bottom: 10px; font-weight: 600; letter-spacing: 1px;">MADE WITH <i class="fa-solid fa-heart" style="color: #ef4444;"></i> BY KONRAD</div>
             <div class="social-icons">
-                <i class="fa-brands fa-instagram"></i>
-                <i class="fa-brands fa-github"></i>
-                <i class="fa-brands fa-discord"></i>
-                <i class="fa-regular fa-envelope"></i>
+                <a href="https://www.instagram.com/transport_gdanski/" target="_blank" style="color: inherit;"><i class="fa-brands fa-instagram"></i></a>
+                <a href="https://github.com/forumowskii" target="_blank" style="color: inherit;"><i class="fa-brands fa-github"></i></a>
+                <div style="position: relative; display: inline-block;">
+                    <i class="fa-brands fa-discord" onclick="window.copyToClipboard('forumowski', this)" style="cursor: pointer;"></i>
+                    <div id="copy-toast" class="copy-toast">Skopiowano!</div>
+                </div>
+                <a href="https://mail.google.com/mail/?view=cm&fs=1&to=forumowskyyy@gmail.com" target="_blank" style="color: inherit;"><i class="fa-regular fa-envelope"></i></a>
             </div>
         </div>
     </nav>
 
     <div class="app-container">
         <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-            <h2 style="margin:0; font-weight: 800; padding-left: 50px; letter-spacing: -1px;">RegioPomorskie</h2>
+            <h2 style="margin:0; font-weight: 800; padding-left: 50px; letter-spacing: -1px; font-size: 16px;">Regio Licznik</h2>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <div id="station-count-badge" style="background: var(--accent); padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(129, 140, 248, 0.3);">STACJE: 0</div>
                 <div style="background: var(--success); padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);">ONLINE</div>
@@ -335,15 +112,10 @@
 
         <section class="card">
             <div style="display: grid; gap: 10px;">
-                <div style="display: flex; gap: 8px;">
-                    <div class="search-wrapper">
-                        <input type="text" id="route-from" placeholder="Skąd?" oninput="window.handleSearch(event, 'from')" autocomplete="off">
-                        <div id="results-from" class="search-results"></div>
-                    </div>
-                    <div class="search-wrapper">
-                        <input type="text" id="route-to" placeholder="Dokąd?" oninput="window.handleSearch(event, 'to')" autocomplete="off">
-                        <div id="results-to" class="search-results"></div>
-                    </div>
+                <div style="display:flex; gap: 8px;">
+                    <input type="text" id="route-from" placeholder="Skąd?" list="stations-list" autocomplete="off">
+                    <input type="text" id="route-to" placeholder="Dokąd?" list="stations-list" autocomplete="off">
+                    <datalist id="stations-list"></datalist>
                 </div>
 
                 <div style="display: flex; gap: 8px;">
@@ -370,10 +142,12 @@
 
     <div id="map-modal" class="modal">
         <div class="modal-header">
-            <h3 style="margin:0">🗺️ Edytor Punktów Sieci</h3>
+            <div style="display:flex; align-items:center; gap:15px;">
+                <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
+                <h3 style="margin:0">🗺️ Edytor Punktów Sieci</h3>
+            </div>
             <div style="display:flex; gap:10px;">
                 <button onclick="window.toggleGrid()" id="grid-btn" style="width:auto; padding:8px 15px; background:#475569; font-size: 12px;">SIATKA: WYŁ</button>
-                <button onclick="window.closeMap()" style="width:auto; background:var(--danger); padding:8px 20px;">ZAMKNIJ</button>
             </div>
         </div>
         <div class="map-wrapper">
@@ -393,8 +167,10 @@
 
     <div id="heatmap-modal" class="modal">
         <div class="modal-header">
-            <h3 style="margin:0">🔥 Mapa Natężenia Ruchu</h3>
-            <button onclick="window.closeHeatmap()" style="width:auto; background:var(--danger); padding:8px 20px;">ZAMKNIJ</button>
+            <div style="display:flex; align-items:center; gap:15px;">
+                <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
+                <h3 style="margin:0">🔥 Mapa Natężenia Ruchu</h3>
+            </div>
         </div>
         <div class="map-wrapper">
             <svg id="svg-heatmap" viewBox="0 0 400 600"></svg>
@@ -416,27 +192,23 @@
 
     <div id="gallery-modal" class="modal">
         <div class="modal-header">
-            <h3 style="margin:0">🖼️ Schematy i Mapy PNG</h3>
-            <button onclick="window.closeGallery()" style="width:auto; background:var(--danger); padding:8px 20px;">WSTECZ</button>
-        </div>
-        
-        <div class="card" style="margin-bottom: 20px; background: rgba(0,0,0,0.3);">
-            <div style="display: grid; gap: 8px;">
-                <input type="text" id="new-gallery-title" placeholder="Tytuł schematu">
-                <input type="text" id="new-gallery-src" placeholder="Link do zdjęcia (URL)">
-                <button onclick="window.addNewGalleryItem()" style="background: var(--success);">DODAJ NOWY SCHEMAT</button>
+            <div style="display:flex; align-items:center; gap:15px;">
+                <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
+                <h3 style="margin:0">🖼️ Schematy i Map</h3>
             </div>
         </div>
-
-        <div id="gallery-list" style="overflow-y: auto; padding-right: 5px;">
+        
+        <div id="gallery-list" class="gallery-grid">
             <!-- Dynamiczna lista schematów -->
         </div>
     </div>
 
     <div id="settings-modal" class="modal">
         <div class="modal-header">
-            <h3 style="margin:0">⚙️ Baza Stacji</h3>
-            <button onclick="window.closeSettings()" style="width:auto; background:var(--danger); padding:8px 20px;">ZAMKNIJ</button>
+            <div style="display:flex; align-items:center; gap:15px;">
+                <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
+                <h3 style="margin:0">⚙️ Baza Stacji</h3>
+            </div>
         </div>
         <input type="text" id="station-search" placeholder="🔍 Szukaj stacji w bazie..." oninput="window.filterStations()">
         <div id="full-station-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; overflow-y:auto; margin-top:15px; padding-bottom:30px;"></div>
@@ -444,8 +216,10 @@
 
     <div id="history-modal" class="modal">
         <div class="modal-header">
-            <h3 style="margin:0">📜 Pełna Historia Tras</h3>
-            <button onclick="window.closeFullHistory()" style="width:auto; background:var(--danger); padding:8px 20px;">ZAMKNIJ</button>
+            <div style="display:flex; align-items:center; gap:15px;">
+                <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
+                <h3 style="margin:0">📜 Pełna Historia Tras</h3>
+            </div>
         </div>
         <div style="overflow-x: auto; flex-grow: 1;">
             <table class="history-table">
@@ -466,43 +240,157 @@
     </div>
 
     <!-- MODAL TARYFA / BILET (STYL JAKDOJADE) -->
-    <div id="tariff-modal" class="modal" style="background: #f3f4f6;">
-        <div class="modal-header" style="color: #000;">
-            <h3 style="margin:0">Bilet Aktywny</h3>
-            <button onclick="window.closeTariff()" style="width:auto; background: #374151; padding:8px 20px;">ZAMKNIJ</button>
+    <div id="tariff-modal" class="modal" style="background: #121212; padding: 0;">
+        <div class="ticket-mobile-wrap">
+            <!-- Zielony Nagłówek -->
+            <div class="ticket-header-green">
+                <div class="ticket-header-top">
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <div class="close-circle" onclick="window.toggleMenu()" style="background: rgba(255,255,255,0.15);">
+                            <i class="fa-solid fa-bars"></i>
+                        </div>
+                        <div class="timer-pill">
+                            <i class="fa-solid fa-circle-notch fa-spin"></i>
+                            <span id="ticket-timer-top">1h 14m 47s</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <h1 class="ticket-title-big">Miesięczny<br>POLREGIO Ulgowy</h1>
+                <div class="ticket-type-label">Ulgowy</div>
+                
+                <div class="transport-icons">
+                    <div class="icon-pill" style="background: #e11d48; color: white;"><i class="fa-solid fa-train"></i> <span>PR</span></div>
+                    <div class="icon-pill" style="background: #eab308; color: black;"><i class="fa-solid fa-train-subway"></i> <span>SKM</span></div>
+                    <div class="icon-pill" style="background: #2563eb; color: white;"><i class="fa-solid fa-train-tram"></i> <span>IC</span></div>
+                </div>
+            </div>
+
+            <!-- Pasek Holo -->
+            <div class="holo-bar">
+                <div class="holo-track">
+                    <span>POLREGIO</span><span>POLREGIO</span><span>POLREGIO</span><span>POLREGIO</span><span>POLREGIO</span><span>POLREGIO</span><span>POLREGIO</span><span>POLREGIO</span><span>POLREGIO</span><span>POLREGIO</span><span>POLREGIO</span><span>POLREGIO</span><span>POLREGIO</span><span>POLREGIO</span><span>POLREGIO</span><span>POLREGIO</span>
+                </div>
+            </div>
+
+            <!-- Ciemna Zawartość -->
+            <div class="ticket-body-dark">
+                <div class="info-card-dark">
+                    <div class="info-row-dark"><span>Ważny od</span><b id="ticket-start-display">--.--.----, --:--:--</b></div>
+                    <div class="info-row-dark"><span>Ważny do</span><b id="ticket-end-display">--.--.----, --:--:--</b></div>
+                    <div class="info-row-dark"><span>Cena</span><b id="ticket-price-display">153,00 zł</b></div>
+                </div>
+
+                <div class="info-card-dark">
+                    <div class="info-row-dark"><span>Numer biletu</span><b id="ticket-num-display">ALV 000067</b></div>
+                    <div class="info-row-dark"><span>Numer telefonu</span><b id="ticket-phone-display">603865798</b></div>
+                    <div class="info-row-dark"><span>Emitent</span><b id="ticket-emit-display">POLREGIO</b></div>
+                </div>
+
+                <div class="ticket-note-dark">
+                    Bilet uprawnia do nieograniczonej liczby przejazdów pociągami POLREGIO , PKP INTERCITY oraz SKM TRÓJMIASTO w ramach Taryfy pomorskiej przez 1 miesiąc od momentu aktywacji.
+                </div>
+
+                <button class="qr-btn-orange" onclick="window.toggleQRView()">
+                    <i class="fa-solid fa-qrcode"></i> Pokaż kod QR
+                </button>
+            </div>
+        </div>
+
+        <!-- Ukryty widok QR (overlay) -->
+        <div id="qr-overlay" class="qr-overlay" onclick="window.toggleQRView()">
+            <div class="qr-card-pop">
+                <img id="ticket-qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=ALV000067" alt="QR">
+                <p>Kliknij, aby zamknąć</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="secret-modal" class="modal">
+        <div class="modal-header">
+            <div style="display:flex; align-items:center; gap:15px;">
+                <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
+                <h3 style="margin:0">⚙️ Panel Administratora</h3>
+            </div>
         </div>
         
-        <div class="ticket-container">
-            <div class="ticket-top-bar">ULGOWY</div>
-            <div class="ticket-main-card">
-                <div class="hologram-overlay"></div>
-                <div style="font-size: 14px; margin-bottom: 20px; opacity: 0.8;">Metropolia GZM<br>(ZTM)</div>
-                <div id="ticket-countdown" class="ticket-timer">20</div>
-                <div style="font-size: 18px; font-weight: 600;">minut</div>
+        <div id="secret-login-view" class="card" style="margin-top: 20px;">
+            <p id="secret-status-text" style="text-align: center; margin-bottom: 15px; font-weight: 600;">Wpisz hasło administratora:</p>
+            <input type="password" id="secret-password-input" placeholder="Hasło...">
+            <button onclick="window.checkSecretPassword()" style="margin-top: 15px; background: var(--accent);">ZALOGUJ</button>
+        </div>
+
+        <div id="secret-content-view" style="display: none; flex-direction: column; gap: 20px; margin-top: 10px; overflow-y: auto;">
+            <div class="card" style="background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 100%);">
+                <h4 style="margin: 0 0 10px 0; color: var(--warning);">✨ BAJERY ALBATROSA</h4>
+                <div style="display: grid; gap: 10px;">
+                    <div class="secret-gadget">
+                        <span>🌈 Tęczowy Tryb Mapy</span>
+                        <button onclick="window.toggleRainbowMode()" class="gadget-btn">WŁĄCZ</button>
+                    </div>
+                </div>
             </div>
-            <div class="ticket-price-box">
-                <span id="ticket-price-val">2,00</span> <small>zł</small>
+
+            <div class="card" style="background: rgba(0,0,0,0.3);">
+                <h4 style="margin: 0 0 10px 0; color: var(--accent);">🛠️ ZARZĄDZANIE SCHEMATAMI</h4>
+                <div style="display: grid; gap: 8px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;">
+                    <input type="text" id="new-gallery-title" placeholder="Tytuł schematu / Tekst">
+                    <input type="text" id="new-gallery-src" placeholder="Link do zdjęcia (opcjonalnie)">
+                    <button onclick="window.addNewGalleryItem()" style="background: var(--success); font-size: 12px; padding: 10px;">DODAJ NOWY ELEMENT</button>
+                </div>
+                <div id="admin-gallery-list" style="display: grid; gap: 10px; max-height: 200px; overflow-y: auto;">
+                    <!-- Lista schematów do usuwania -->
+                </div>
+            </div>
+
+            <div class="card" style="background: rgba(0,0,0,0.3);">
+                <h4 style="margin: 0 0 10px 0; color: #fbbf24;">📍 ZARZĄDZANIE STACJAMI</h4>
+                <div id="admin-stations-list" style="display: grid; gap: 10px; max-height: 250px; overflow-y: auto;">
+                    <!-- Lista stacji do edycji/usuwania -->
+                </div>
+            </div>
+
+            <div class="card" style="background: rgba(0,0,0,0.3);">
+                <h4 style="margin: 0 0 10px 0; color: #f87171;">🚂 ZARZĄDZANIE PRZEJAZDAMI</h4>
+                <div id="admin-trips-list" style="display: grid; gap: 10px; max-height: 250px; overflow-y: auto;">
+                    <!-- Lista przejazdów do edycji/usuwania -->
+                </div>
+            </div>
+
+            <div class="card" style="background: rgba(0,0,0,0.3);">
+                <h4 style="margin: 0 0 10px 0; color: var(--success);">🎫 EDYCJA BILETU</h4>
+                <div style="display: grid; gap: 8px;">
+                    <span style="font-size: 11px; opacity: 0.6;">Data aktywacji (Ważny od):</span>
+                    <input type="datetime-local" id="ticket-start-time" style="background: #fff; color: #000;">
+                    
+                    <span style="font-size: 11px; opacity: 0.6;">Numer biletu:</span>
+                    <input type="text" id="ticket-num-input" placeholder="np. ALV 000067" style="background: #fff; color: #000;">
+                    
+                    <span style="font-size: 11px; opacity: 0.6;">Numer telefonu:</span>
+                    <input type="text" id="ticket-phone-input" placeholder="np. 603865798" style="background: #fff; color: #000;">
+                    
+                    <span style="font-size: 11px; opacity: 0.6;">Emitent:</span>
+                    <input type="text" id="ticket-emit-input" placeholder="np. POLREGIO" style="background: #fff; color: #000;">
+                    
+                    <span style="font-size: 11px; opacity: 0.6;">Cena (zł):</span>
+                    <input type="text" id="ticket-price-input" placeholder="np. 153,00" style="background: #fff; color: #000;">
+
+                    <span style="font-size: 11px; opacity: 0.6;">Treść kodu QR:</span>
+                    <input type="text" id="custom-qr-data" placeholder="Treść kodu QR..." style="background: #fff; color: #000;">
+                    
+                    <button onclick="window.saveTicketData()" style="background: var(--success); font-size: 12px; padding: 10px; margin-top: 5px;">ZAPISZ DANE BILETU</button>
+                </div>
             </div>
             
-            <div class="ticket-controls">
-                <p style="font-size: 11px; color: #6b7280; text-align: center; margin-top: 10px;">Ważny przez 20 minut od momentu skasowania (z możliwością przesiadek).</p>
+            <div class="card">
+                <h4 style="margin: 0 0 10px 0; color: var(--accent);">📊 STATYSTYKI ZAAWANSOWANE</h4>
+                <p id="adv-stats-text" style="font-size: 13px; line-height: 1.5; opacity: 0.8;"></p>
             </div>
 
-            <div class="qr-section">
-                <img id="ticket-qr-img" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=AlbatrosovaTicket2026" alt="QR Code">
-                <div style="margin-top: 10px;">
-                    <input type="text" id="custom-qr-data" placeholder="Treść kodu QR..." oninput="window.updateQRCode()" style="background: #f9fafb; color: #374151; border: 1px solid #d1d5db; padding: 8px; font-size: 12px; width: 100%;">
-                </div>
-            </div>
-
-            <div class="ticket-info-list">
-                <div class="info-row" style="flex-direction: column; align-items: flex-start; gap: 5px;">
-                    <span style="font-size: 11px; opacity: 0.6; text-transform: uppercase;">Ważny od</span>
-                    <input type="datetime-local" id="ticket-start-time" onchange="window.startTicketCountdown()" style="font-weight: 800; font-size: 16px;">
-                </div>
-                <div class="info-row" style="flex-direction: column; align-items: flex-start; gap: 5px;">
-                    <span style="font-size: 11px; opacity: 0.6; text-transform: uppercase;">Ważny do</span>
-                    <span id="ticket-end-time-display" style="font-weight: 800; font-size: 16px; color: #000;">--:--:--</span>
+            <div class="card" style="background: #000; border: 1px solid #333;">
+                <h4 style="margin: 0 0 10px 0; color: #0f0; font-family: monospace;">>_ CONSOLE_LOGS</h4>
+                <div id="secret-console" style="font-family: monospace; font-size: 10px; color: #0f0; max-height: 150px; overflow-y: auto; line-height: 1.4;">
+                    <!-- Logi będą tu wpadać -->
                 </div>
             </div>
         </div>

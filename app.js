@@ -1,17 +1,40 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 import PhotoSwipeLightbox from 'https://unpkg.com/photoswipe@5.4.3/dist/photoswipe-lightbox.esm.js';
 
 // --- KONFIGURACJA ---
-const firebaseConfig = {
-    apiKey: "AIzaSyCqWomuAPeflvawobPGRlNIqE-7H1cU4bs",
-    authDomain: "biliet.firebaseapp.com",
-    databaseURL: "https://biliet-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "biliet",
-    storageBucket: "biliet.firebasestorage.app",
-    messagingSenderId: "739842092527",
-    appId: "1:739842092527:web:0d8989e6a09b1d78ebda1a"
+// --- LOGOWANIE DO TAJNEJ KONSOLI ---
+const originalLog = console.log;
+const originalError = console.error;
+const secretConsole = () => document.getElementById('secret-console');
+
+console.log = (...args) => {
+    originalLog(...args);
+    const consoleElem = secretConsole();
+    if (consoleElem) {
+        const line = document.createElement('div');
+        line.innerText = `[LOG] ${args.join(' ')}`;
+        consoleElem.appendChild(line);
+        consoleElem.scrollTop = consoleElem.scrollHeight;
+    }
 };
+
+console.error = (...args) => {
+    originalError(...args);
+    const consoleElem = secretConsole();
+    if (consoleElem) {
+        const line = document.createElement('div');
+        line.style.color = '#ff5555';
+        line.innerText = `[ERR] ${args.join(' ')}`;
+        consoleElem.appendChild(line);
+        consoleElem.scrollTop = consoleElem.scrollHeight;
+    }
+};
+
+// Logowanie początkowe
+console.log("System RegioPomorskie zainicjowany...");
+
+import { firebaseConfig } from './firebase-secrets.js';
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
@@ -20,16 +43,21 @@ const statsRef = ref(db, 'stats/oszczednosci');
 const tripsRef = ref(db, 'stats/przejazdy');
 const stationsRef = ref(db, 'stats/stacje_siec');
 const schematyRef = ref(db, 'stats/schematy');
+const ticketRef = ref(db, 'stats/bilet_miesieczny');
+const configRef = ref(db, 'stats/config');
 
 let earnedSoFar = 0;
 let stations = {};
 let tripsData = [];
 let galleryData = [];
 let gridActive = false;
+let busClicks = 0;
+let isAdminUnlocked = false;
+let storedPassword = null;
 
-// Stany Zoomu
-let mapState = { x: 0, y: 0, scale: 1 };
-let heatState = { x: 0, y: 0, scale: 1 };
+// Stany Zoomu (Domyślnie wyśrodkowane na system komunikacyjny)
+let mapState = { x: 50, y: 50, scale: 0.8 };
+let heatState = { x: 50, y: 50, scale: 0.8 };
 
 // Taryfa 2026
 const taryfa = [
@@ -41,76 +69,268 @@ const taryfa = [
 
 // --- SYNCHRONIZACJA FIREBASE ---
 onValue(statsRef, (s) => { earnedSoFar = s.val() || 0; updateProgressUI(); });
-onValue(stationsRef, (s) => { 
-    stations = s.val() || {}; 
-    updateDatalists(); 
-    document.getElementById('station-count-badge').innerText = `STACJE: ${Object.keys(stations).length}`;
+onValue(configRef, (s) => { 
+    if (s.exists()) {
+        storedPassword = s.val().password;
+    }
 });
+onValue(stationsRef, (s) => { 
+    let rawStations = s.val() || {}; 
+    
+    // Normalizacja kluczy na małe litery i obsługa tablicy
+    stations = {};
+    const adminStationsList = document.getElementById('admin-stations-list');
+    if (adminStationsList) adminStationsList.innerHTML = "";
+
+    if (Array.isArray(rawStations)) {
+        rawStations.forEach((val, idx) => { 
+            if(val) {
+                const key = idx.toString();
+                stations[key] = val; 
+                if (adminStationsList) appendAdminStationItem(adminStationsList, key, val);
+            }
+        });
+    } else {
+        Object.keys(rawStations).forEach(key => {
+            const normalizedKey = key.toLowerCase().trim();
+            stations[normalizedKey] = rawStations[key];
+            if (adminStationsList) appendAdminStationItem(adminStationsList, key, rawStations[key]);
+        });
+    }
+
+    updateDatalists(); 
+    
+    const count = Object.keys(stations).length;
+    const badge = document.getElementById('station-count-badge');
+    if (badge) {
+        badge.innerText = `STACJE: ${count}`;
+    }
+});
+
+function appendAdminStationItem(container, key, data) {
+    const div = document.createElement('div');
+    div.style.cssText = "display:flex; flex-direction:column; gap:5px; background:rgba(255,255,255,0.05); padding:10px; border-radius:10px; font-size:12px; border-left: 3px solid #fbbf24;";
+    div.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <b style="color:#fbbf24">${key.toUpperCase()}</b>
+            <div style="display:flex; gap:5px;">
+                <button onclick="window.editStationName('${key}')" style="width:auto; padding:3px 8px; background:#475569; font-size:9px;">EDYTUJ</button>
+                <button onclick="window.deleteStation('${key}')" style="width:auto; padding:3px 8px; background:var(--danger); font-size:9px;">USUŃ</button>
+            </div>
+        </div>
+        <div style="opacity:0.7">KM: ${data.km} | Parent: ${data.parent || 'BRAK'} | X: ${data.x}, Y: ${data.y}</div>
+    `;
+    container.appendChild(div);
+}
+
+window.editStationName = (key) => {
+    const oldData = stations[key.toLowerCase().trim()];
+    const newName = prompt("Wpisz nową nazwę dla stacji (klucz):", key);
+    const newKm = prompt("Wpisz kilometry (KM):", oldData.km);
+    const newParent = prompt("Wpisz nazwę stacji nadrzędnej (parent):", oldData.parent || "");
+
+    if (newName) {
+        const normalizedNewName = newName.toLowerCase().trim();
+        const updatedData = {
+            ...oldData,
+            km: parseFloat(newKm) || 0,
+            parent: newParent ? newParent.toLowerCase().trim() : null
+        };
+
+        // 1. Zapisz nowe dane stacji
+        set(ref(db, `stats/stacje_siec/${normalizedNewName}`), updatedData).then(() => {
+            // 2. Jeśli nazwa się zmieniła, usuń starą stację i zaktualizuj dzieci
+            if (normalizedNewName !== key.toLowerCase().trim()) {
+                remove(ref(db, `stats/stacje_siec/${key}`));
+                
+                // Aktualizacja wszystkich stacji, które miały tę stację jako parent
+                Object.keys(stations).forEach(sKey => {
+                    if (stations[sKey].parent === key.toLowerCase().trim()) {
+                        set(ref(db, `stats/stacje_siec/${sKey}/parent`), normalizedNewName);
+                    }
+                });
+            }
+            alert("Dane stacji zaktualizowane! ✅");
+        });
+    }
+};
+
+window.deleteStation = (key) => {
+    if (confirm(`Czy na pewno chcesz trwale usunąć stację ${key.toUpperCase()}?`)) {
+        remove(ref(db, `stats/stacje_siec/${key}`)).then(() => alert("Stacja usunięta."));
+    }
+};
 onValue(schematyRef, (s) => {
     galleryData = [];
     const list = document.getElementById('gallery-list');
+    const adminList = document.getElementById('admin-gallery-list');
+    
     list.innerHTML = "";
+    if (adminList) adminList.innerHTML = "";
+
     if(s.exists()) {
         s.forEach(child => {
             const item = child.val();
-            galleryData.push(item);
+            const key = child.key;
+            galleryData.push({ ...item, key: key });
             const idx = galleryData.length - 1;
+            
+            // 1. Widok dla użytkownika
             const div = document.createElement('div');
-            div.style.marginBottom = "20px";
-            div.innerHTML = `
-                <div style="font-weight:600; margin-bottom:5px; color:var(--accent); display:flex; justify-content:space-between; align-items:center;">
-                    <span>${item.title || 'Bez tytułu'}</span>
-                    <button onclick="window.processSchemeWithAI(event, '${item.src}')" style="width:auto; padding:5px 10px; font-size:10px; background:var(--warning); color:#000;">ANALIZUJ AI</button>
-                </div>
-                <img src="${item.src}" class="schemat-thumb" onclick="window.fullView(${idx})" alt="${item.title}">
-            `;
+            div.className = 'gallery-item';
+            if (item.src) {
+                div.innerHTML = `
+                    <div style="font-weight:600; margin-bottom:10px; color:var(--accent); display:flex; justify-content:space-between; align-items:center;">
+                        <span>${item.title || 'Bez tytułu'}</span>
+                    </div>
+                    <img src="${item.src}" class="schemat-thumb" onclick="window.fullView(${idx})" alt="${item.title}">
+                `;
+            } else {
+                div.className = 'text-note-item';
+                const isLink = item.title.trim().startsWith('http://') || item.title.trim().startsWith('https://');
+                if (isLink) {
+                    const linkUrl = item.title.trim();
+                    div.innerHTML = `
+                        <div onclick="window.open('${linkUrl}', '_blank')" style="cursor: pointer; width: 100%;">
+                            <i class="fa-solid fa-link" style="margin-right: 10px; color: var(--accent);"></i>
+                            <b>${item.title}</b>
+                        </div>
+                    `;
+                } else {
+                    div.innerHTML = `<b>${item.title}</b>`;
+                }
+            }
             list.appendChild(div);
+
+            // 2. Widok dla admina (do usuwania)
+            if (adminList) {
+                const adminDiv = document.createElement('div');
+                adminDiv.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.05); padding:10px; border-radius:10px; font-size:12px;";
+                adminDiv.innerHTML = `
+                    <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px;">${item.title}</span>
+                    <button onclick="window.deleteGalleryItem('${key}')" style="width:auto; padding:5px 10px; background:var(--danger); font-size:10px;">USUŃ</button>
+                `;
+                adminList.appendChild(adminDiv);
+            }
         });
     } else {
-        list.innerHTML = '<p style="text-align:center; opacity:0.5;">Brak schematów w bazie. Dodaj pierwszy powyżej!</p>';
+        list.innerHTML = '<p style="text-align:center; opacity:0.5;">Brak schematów w bazie.</p>';
+        if (adminList) adminList.innerHTML = '<p style="text-align:center; opacity:0.5; font-size:11px;">Baza pusta.</p>';
     }
 });
 onValue(tripsRef, (s) => {
+    tripsData = [];
     const list = document.getElementById('history-list');
     const tableBody = document.getElementById('full-history-table-body');
-    list.innerHTML = "";
-    tableBody.innerHTML = "";
-    tripsData = [];
+    const adminTripsList = document.getElementById('admin-trips-list');
+    
+    if (list) list.innerHTML = "";
+    if (tableBody) tableBody.innerHTML = "";
+    if (adminTripsList) adminTripsList.innerHTML = "";
+
     if(s.exists()) {
         s.forEach(child => {
             const t = child.val();
-            tripsData.push(t);
+            const key = child.key;
+            tripsData.push({ ...t, key: key });
         });
 
         // 1. Pełna tabela (wszystkie)
         tripsData.slice().reverse().forEach(t => {
-            const row = `
-                <tr>
-                    <td>${t.data}</td>
-                    <td>R ${t.nr || '---'}</td>
-                    <td>${t.od.toUpperCase()}</td>
-                    <td>${t.do.toUpperCase()}</td>
-                    <td style="color:var(--success); font-weight:900">${t.zl.toFixed(2)} zł</td>
-                </tr>
-            `;
-            tableBody.innerHTML += row;
+            if (tableBody) {
+                const row = `
+                    <tr>
+                        <td>${t.data}</td>
+                        <td>${t.nr || '---'}</td>
+                        <td>${t.od.toUpperCase()}</td>
+                        <td>${t.do.toUpperCase()}</td>
+                        <td style="color:var(--success); font-weight:900">${t.zl.toFixed(2)} zł</td>
+                    </tr>
+                `;
+                tableBody.innerHTML += row;
+            }
         });
 
         // 2. Główna lista (tylko 3 ostatnie)
         tripsData.slice(-3).reverse().forEach(t => {
-            const div = document.createElement('div');
-            div.className = 'history-item';
-            div.innerHTML = `
-                <div>
-                    <b style="color:#fff">R ${t.nr || '---'}</b> | <small>${t.data}</small><br>
-                    <span>${t.od.toUpperCase()} ➔ ${t.do.toUpperCase()}</span>
-                </div>
-                <div style="color:var(--success); font-weight:900">+${t.zl.toFixed(2)} zł</div>
-            `;
-            list.appendChild(div);
+            if (list) {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                div.innerHTML = `
+                    <div>
+                        <b style="color:#fff">${t.nr || '---'}</b> | <small>${t.data}</small><br>
+                        <span>${t.od.toUpperCase()} ➔ ${t.do.toUpperCase()}</span>
+                    </div>
+                    <div style="color:var(--success); font-weight:900">+${t.zl.toFixed(2)} zł</div>
+                `;
+                list.appendChild(div);
+            }
+        });
+
+        // 3. Widok administratora (wszystkie przejazdy do edycji/usuwania)
+        if (adminTripsList) {
+            tripsData.slice().reverse().forEach(t => {
+                const div = document.createElement('div');
+                div.style.cssText = "display:flex; flex-direction:column; gap:5px; background:rgba(255,255,255,0.05); padding:10px; border-radius:10px; font-size:11px; border-left: 3px solid #f87171;";
+                div.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <b>${t.data} | ${t.nr || 'BRAK NR'}</b>
+                        <div style="display:flex; gap:5px;">
+                            <button onclick="window.editTrip('${t.key}')" style="width:auto; padding:3px 8px; background:#475569; font-size:9px;">EDYTUJ</button>
+                            <button onclick="window.deleteTrip('${t.key}', ${t.zl})" style="width:auto; padding:3px 8px; background:var(--danger); font-size:9px;">USUŃ</button>
+                        </div>
+                    </div>
+                    <div>${t.od.toUpperCase()} ➔ ${t.do.toUpperCase()} | <span style="color:var(--success)">${t.zl.toFixed(2)} zł</span></div>
+                `;
+                adminTripsList.appendChild(div);
+            });
+        }
+    }
+    updateHotRoutesUI();
+});
+
+window.deleteTrip = (key, amount) => {
+    if (confirm("Czy na pewno chcesz usunąć ten przejazd? Spowoduje to również odjęcie kwoty od łącznego zysku.")) {
+        remove(ref(db, `stats/przejazdy/${key}`)).then(() => {
+            set(statsRef, earnedSoFar - amount);
+            alert("Przejazd usunięty. ✅");
         });
     }
-});
+};
+
+window.editTrip = (key) => {
+    const trip = tripsData.find(t => t.key === key);
+    if (!trip) return;
+
+    const newNr = prompt("Numer pociągu:", trip.nr || "");
+    const newData = prompt("Data (DD.MM.RRRR):", trip.data);
+    const newOd = prompt("Stacja początkowa:", trip.od.toUpperCase());
+    const newDo = prompt("Stacja końcowa:", trip.do.toUpperCase());
+    const newZl = prompt("Cena (zł):", trip.zl);
+
+    if (newData && newOd && newDo && newZl) {
+        const oldZl = parseFloat(trip.zl);
+        const updatedZl = parseFloat(newZl);
+        
+        const updatedTrip = {
+            ...trip,
+            nr: newNr,
+            data: newData,
+            od: newOd.toLowerCase().trim(),
+            do: newDo.toLowerCase().trim(),
+            zl: updatedZl
+        };
+        delete updatedTrip.key; // Usuwamy klucz pomocniczy przed zapisem
+
+        set(ref(db, `stats/przejazdy/${key}`), updatedTrip).then(() => {
+            // Aktualizacja łącznego zysku
+            if (oldZl !== updatedZl) {
+                set(statsRef, earnedSoFar - oldZl + updatedZl);
+            }
+            alert("Przejazd zaktualizowany! ✅");
+        });
+    }
+};
 
 // --- SYSTEM ZOOM & PAN ---
 function setupSVGInteractions(svgId, state, renderFn) {
@@ -207,6 +427,13 @@ function findPath(start, end) {
     return segments;
 }
 
+const getHeatColor = (count) => {
+    if (count === 0) return "#475569";
+    if (count < 5) return "#facc15"; // Żółty
+    if (count < 20) return "#f97316"; // Pomarańczowy
+    return "#ef4444"; // Czerwony
+};
+
 function renderMapElements(svgId, state, mode = 'base') {
     const svg = document.getElementById(svgId);
     svg.innerHTML = "";
@@ -237,7 +464,9 @@ function renderMapElements(svgId, state, mode = 'base') {
     const usage = {};
     if(mode === 'heat') {
         tripsData.forEach(t => {
-            const pathSegments = findPath(t.od, t.do);
+            const od = t.od.toLowerCase().trim();
+            const d = t.do.toLowerCase().trim();
+            const pathSegments = findPath(od, d);
             pathSegments.forEach(seg => {
                 const k = seg.sort().join('|');
                 usage[k] = (usage[k] || 0) + 1;
@@ -256,7 +485,7 @@ function renderMapElements(svgId, state, mode = 'base') {
             if(mode === 'heat') {
                 const count = usage[[name, s.parent].sort().join('|')] || 0;
                 line.style.strokeWidth = 6; line.style.strokeLinecap = "round";
-                line.style.stroke = count === 0 ? "#475569" : count < 5 ? "#facc15" : count < 20 ? "#f97316" : "#ef4444";
+                line.style.stroke = getHeatColor(count);
             } else {
                 line.style.stroke = "#6366f1"; line.style.strokeWidth = 2; line.style.opacity = 0.4;
             }
@@ -297,10 +526,12 @@ function renderMapElements(svgId, state, mode = 'base') {
 
 // --- LOGIKA BIZNESOWA ---
 window.calculatePrice = () => {
-    const f = document.getElementById('route-from').value.toLowerCase();
-    const t = document.getElementById('route-to').value.toLowerCase();
+    const f = document.getElementById('route-from').value.toLowerCase().trim();
+    const t = document.getElementById('route-to').value.toLowerCase().trim();
     const d = parseFloat(document.getElementById('discount-select').value);
-    if(!stations[f] || !stations[t]) return alert("Błąd stacji!");
+    
+    if(!f || !t) return alert("Wpisz lub wybierz stację początkową i końcową!");
+    if(!stations[f] || !stations[t]) return alert("Błąd: Jedna z wpisanych stacji nie istnieje w bazie!");
     
     const dist = Math.abs(stations[f].km - stations[t].km);
     const p = taryfa.find(r => dist <= r.max) || {cena: 30};
@@ -311,16 +542,25 @@ window.calculatePrice = () => {
 };
 
 window.addNewTrip = () => {
-    const f = document.getElementById('route-from').value.toLowerCase();
-    const t = document.getElementById('route-to').value.toLowerCase();
+    const f = document.getElementById('route-from').value.toLowerCase().trim();
+    const t = document.getElementById('route-to').value.toLowerCase().trim();
     const zl = parseFloat(document.getElementById('trip-amount').value);
     const nr = document.getElementById('regio-num').value;
-    if(!f || !t || isNaN(zl)) return;
+    if(!f || !t || isNaN(zl)) return alert("Uzupełnij dane przejazdu!");
+
+    if(!stations[f] || !stations[t]) return alert("Błąd: Jedna z wpisanych stacji nie istnieje w bazie!");
 
     push(tripsRef, {
         od: f, do: t, zl: zl, nr: nr,
         data: new Date().toLocaleDateString('pl-PL')
-    }).then(() => set(statsRef, earnedSoFar + zl));
+    }).then(() => {
+        set(statsRef, earnedSoFar + zl);
+        // Resetowanie pól po dodaniu
+        document.getElementById('route-from').value = "";
+        document.getElementById('route-to').value = "";
+        document.getElementById('trip-amount').value = "";
+        document.getElementById('regio-num').value = "";
+    });
 };
 
 window.saveNewStation = () => {
@@ -334,20 +574,147 @@ window.saveNewStation = () => {
     set(stationsRef, stations).then(() => renderBase());
 };
 
+window.deleteGalleryItem = (key) => {
+    if (confirm("Czy na pewno chcesz usunąć ten element z galerii?")) {
+        const itemRef = ref(db, `stats/schematy/${key}`);
+        remove(itemRef).then(() => {
+            console.log(`Usunięto element: ${key}`);
+        }).catch(e => {
+            console.error("Błąd podczas usuwania:", e);
+            alert("Błąd podczas usuwania elementu.");
+        });
+    }
+};
+
 window.addNewGalleryItem = () => {
     const title = document.getElementById('new-gallery-title').value;
     const src = document.getElementById('new-gallery-src').value;
-    if(!title || !src) return alert("Podaj tytuł i link!");
+    if(!title) return alert("Podaj chociaż tytuł lub tekst!");
     
-    push(schematyRef, { 
+    const newItem = { 
         title: title, 
-        src: src,
-        w: 1600, // Domyślne wymiary
+        src: src || null,
+        w: 1600,
         h: 2000 
-    }).then(() => {
+    };
+    
+    push(schematyRef, newItem).then(() => {
         document.getElementById('new-gallery-title').value = "";
         document.getElementById('new-gallery-src').value = "";
+        window.toggleGalleryEditor(); // Zamknij po dodaniu
     });
+};
+
+window.toggleGalleryEditor = () => {
+    const panel = document.getElementById('gallery-editor-panel');
+    const btn = document.getElementById('gallery-edit-btn');
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        btn.innerText = "❌ ANULUJ";
+        btn.style.background = "var(--danger)";
+    } else {
+        panel.style.display = 'none';
+        btn.innerText = "🛠️ EDYTOR";
+        btn.style.background = "var(--accent)";
+    }
+};
+
+// --- SEKRETNY PANEL ---
+window.handleBusClick = () => {
+    if (isAdminUnlocked) {
+        window.openSecretPanel();
+        return;
+    }
+    
+    busClicks++;
+    if (busClicks === 10) {
+        busClicks = 0;
+        isAdminUnlocked = true;
+        document.getElementById('admin-bus-trigger').classList.add('admin-active');
+        window.openSecretPanel();
+    }
+};
+
+window.openSecretPanel = () => {
+    window.closeAllModals();
+    document.getElementById('secret-modal').classList.add('active');
+    
+    const statusText = document.getElementById('secret-status-text');
+    if (!storedPassword) {
+        statusText.innerText = "Witaj w Panelu Tajnym! Wymyśl hasło, aby je zapisać:";
+        document.querySelector('#secret-login-view button').innerText = "USTAW HASŁO";
+    } else {
+        statusText.innerText = "Wpisz hasło, aby wejść:";
+        document.querySelector('#secret-login-view button').innerText = "ZALOGUJ";
+    }
+
+    // Załaduj aktualne dane biletu do pól edycji
+    onValue(ticketRef, (s) => {
+        if (s.exists()) {
+            const data = s.val();
+            document.getElementById('ticket-start-time').value = data.startTime || "";
+            document.getElementById('custom-qr-data').value = data.qrData || "";
+            document.getElementById('ticket-num-input').value = data.num || "ALV 000067";
+            document.getElementById('ticket-phone-input').value = data.phone || "603865798";
+            document.getElementById('ticket-emit-input').value = data.emit || "POLREGIO";
+            document.getElementById('ticket-price-input').value = data.price || "153,00";
+        }
+    }, { onlyOnce: true });
+};
+
+window.checkSecretPassword = () => {
+    const input = document.getElementById('secret-password-input');
+    const pass = input.value;
+    if (!pass) return alert("Wpisz hasło!");
+
+    if (!storedPassword) {
+        // Ustawianie hasła po raz pierwszy
+        set(configRef, { password: pass }).then(() => {
+            alert("Hasło zostało ustawione i zapisane w chmurze! ✅");
+            window.showSecretContent();
+        });
+    } else {
+        // Logowanie
+        if (pass === storedPassword) {
+            window.showSecretContent();
+        } else {
+            alert("Błędne hasło! ❌");
+        }
+    }
+    input.value = "";
+};
+
+window.showSecretContent = () => {
+    document.getElementById('secret-login-view').style.display = 'none';
+    document.getElementById('secret-content-view').style.display = 'flex';
+    
+    // Załaduj statystyki
+    const stationsCount = Object.keys(stations).length;
+    const tripsCount = tripsData.length;
+    const totalEarned = earnedSoFar.toFixed(2);
+    document.getElementById('adv-stats-text').innerHTML = `
+        🚀 Aktywne stacje: <b>${stationsCount}</b><br>
+        📅 Wszystkie przejazdy: <b>${tripsCount}</b><br>
+        💎 Łączny zysk: <b>${totalEarned} zł</b><br>
+        🛰️ System: <b>RegioPomorskie PRO 2.0</b>
+    `;
+};
+
+// BAJERY
+window.toggleRainbowMode = (e) => {
+    document.body.classList.toggle('rainbow-active');
+    alert("Tęczowy tryb mapy aktywowany! 🌈");
+};
+
+window.simulateMillions = () => {
+    set(statsRef, 1000000.00).then(() => {
+        alert("Właśnie stałeś się milionerem! 💰💰💰");
+    });
+};
+
+window.boostAnimations = () => {
+    document.documentElement.style.setProperty('--transition-speed', '0.1s');
+    alert("Prędkość animacji zwiększona! 🚀");
 };
 
 window.processSchemeWithAI = async (e, imageUrl) => {
@@ -428,6 +795,20 @@ window.fullView = (index) => {
 };
 
 // --- UI / MENU ---
+window.copyToClipboard = (text, element) => {
+    navigator.clipboard.writeText(text).then(() => {
+        const toast = document.getElementById('copy-toast');
+        if (toast) {
+            toast.classList.add('active');
+            setTimeout(() => {
+                toast.classList.remove('active');
+            }, 2000);
+        }
+    }).catch(err => {
+        console.error('Błąd kopiowania:', err);
+    });
+};
+
 window.toggleMenu = () => {
     document.getElementById('side-menu').classList.toggle('active');
     document.getElementById('menu-overlay').classList.toggle('active');
@@ -435,6 +816,18 @@ window.toggleMenu = () => {
 window.closeMenu = () => {
     document.getElementById('side-menu').classList.remove('active');
     document.getElementById('menu-overlay').classList.remove('active');
+};
+
+window.setActiveMenuItem = (id) => {
+    document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+    const activeItem = document.getElementById(id);
+    if (activeItem) activeItem.classList.add('active');
+};
+
+window.closeAllModals = () => {
+    document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+    window.setActiveMenuItem('menu-home');
+    window.closeMenu();
 };
 
 function updateProgressUI() {
@@ -446,9 +839,14 @@ function updateProgressUI() {
 
 function updateDatalists() {
     const dl = document.getElementById('stations-list');
+    if (!dl) return;
+    
     dl.innerHTML = "";
+    
     Object.keys(stations).sort().forEach(k => {
-        const o = document.createElement('option'); o.value = k.toUpperCase(); dl.appendChild(o);
+        const opt = document.createElement('option');
+        opt.value = k.toUpperCase();
+        dl.appendChild(opt);
     });
 }
 
@@ -462,52 +860,157 @@ window.filterStations = () => {
 };
 
 // Sterowanie oknami
-window.openMap = () => { document.getElementById('map-modal').classList.add('active'); renderBase(); };
+window.openMap = () => { 
+    window.closeAllModals();
+    document.getElementById('map-modal').classList.add('active'); 
+    window.setActiveMenuItem('menu-map');
+    renderBase(); 
+};
 window.closeMap = () => document.getElementById('map-modal').classList.remove('active');
-window.openHeatmap = () => { document.getElementById('heatmap-modal').classList.add('active'); renderHeat(); };
+
+window.openHeatmap = () => { 
+    window.closeAllModals();
+    document.getElementById('heatmap-modal').classList.add('active'); 
+    window.setActiveMenuItem('menu-heatmap');
+    renderHeat(); 
+};
 window.closeHeatmap = () => document.getElementById('heatmap-modal').classList.remove('active');
-window.openGallery = () => { window.closeMenu(); document.getElementById('gallery-modal').classList.add('active'); };
+
+window.openGallery = () => { 
+    window.closeAllModals();
+    document.getElementById('gallery-modal').classList.add('active'); 
+    window.setActiveMenuItem('menu-gallery');
+};
 window.closeGallery = () => document.getElementById('gallery-modal').classList.remove('active');
-window.openSettings = () => { window.closeMenu(); document.getElementById('settings-modal').classList.add('active'); window.filterStations(); };
+
+window.openSettings = () => { 
+    window.closeAllModals();
+    document.getElementById('settings-modal').classList.add('active'); 
+    window.setActiveMenuItem('menu-settings');
+    window.filterStations(); 
+};
 window.closeSettings = () => document.getElementById('settings-modal').classList.remove('active');
-window.openFullHistory = () => { window.closeMenu(); document.getElementById('history-modal').classList.add('active'); };
+
+window.openFullHistory = () => { 
+    window.closeAllModals();
+    document.getElementById('history-modal').classList.add('active'); 
+    window.setActiveMenuItem('menu-history');
+};
 window.closeFullHistory = () => document.getElementById('history-modal').classList.remove('active');
 
-window.handleSearch = (e, type) => {
-    const q = e.target.value.toLowerCase();
-    const resultsDiv = document.getElementById(`results-${type}`);
-    resultsDiv.innerHTML = "";
-    if (!q) { resultsDiv.classList.remove('active'); return; }
-
-    const matches = Object.keys(stations).filter(n => n.includes(q)).sort();
-    if (matches.length > 0) {
-        resultsDiv.classList.add('active');
-        matches.forEach(name => {
-            const div = document.createElement('div');
-            div.className = 'search-item';
-            div.innerText = name.toUpperCase();
-            div.onclick = () => {
-                document.getElementById(`route-${type}`).value = name.toUpperCase();
-                resultsDiv.classList.remove('active');
-            };
-            resultsDiv.appendChild(div);
-        });
-    } else {
-        resultsDiv.classList.remove('active');
-    }
-};
+// Funkcja handleSearch została usunięta, ponieważ pola wyszukiwania zostały zastąpione polami wyboru (select).
 
 let ticketTimerInterval = null;
 
 window.openTariff = () => {
-    window.closeMenu();
+    window.closeAllModals();
     document.getElementById('tariff-modal').classList.add('active');
+    window.setActiveMenuItem('menu-tariff');
     
-    // Ustaw domyślną datę na teraz
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    document.getElementById('ticket-start-time').value = now.toISOString().slice(0, 16);
-    window.startTicketCountdown();
+    // Pobierz dane z Firebase i zaktualizuj widok
+    onValue(ticketRef, (s) => {
+        if (s.exists()) {
+            const data = s.val();
+            const start = new Date(data.startTime);
+            const end = new Date(start);
+            end.setMonth(end.getMonth() + 1);
+
+            const opt = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            document.getElementById('ticket-start-display').innerText = start.toLocaleString('pl-PL', opt);
+            document.getElementById('ticket-end-display').innerText = end.toLocaleString('pl-PL', opt);
+            
+            // Aktualizacja pozostałych danych
+            document.getElementById('ticket-num-display').innerText = data.num || 'ALV 000067';
+            document.getElementById('ticket-phone-display').innerText = data.phone || '603865798';
+            document.getElementById('ticket-emit-display').innerText = data.emit || 'POLREGIO';
+            document.getElementById('ticket-price-display').innerText = `${data.price || '153,00'} zł`;
+
+            if (data.qrData) {
+                const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(data.qrData)}`;
+                document.getElementById('ticket-qr-img').src = qrUrl;
+            }
+
+            // Uruchom odliczanie na żywo w nagłówku
+            window.updateLiveTicketTimer(end);
+        }
+    }, { onlyOnce: true });
+};
+
+let liveTimerInterval = null;
+window.updateLiveTicketTimer = (endTime) => {
+    if (liveTimerInterval) clearInterval(liveTimerInterval);
+    
+    const timerElem = document.getElementById('ticket-timer-top');
+    
+    liveTimerInterval = setInterval(() => {
+        const now = new Date();
+        const diff = endTime - now;
+        
+        if (diff <= 0) {
+            timerElem.innerText = "Bilet wygasł";
+            clearInterval(liveTimerInterval);
+            return;
+        }
+        
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        
+        if (days > 0) {
+            timerElem.innerText = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+        } else {
+            timerElem.innerText = `${hours}h ${minutes}m ${seconds}s`;
+        }
+    }, 1000);
+};
+
+window.toggleQRView = async () => {
+    const overlay = document.getElementById('qr-overlay');
+    const isActive = overlay.classList.toggle('active');
+
+    if (isActive) {
+        // Próba rozjaśnienia ekranu (Wake Lock API zapobiega wygaszaniu, 
+        // a symulacja jasności odbywa się przez białe tło pod kodem QR)
+        try {
+            if ('wakeLock' in navigator) {
+                window.wakeLock = await navigator.wakeLock.request('screen');
+            }
+        } catch (err) {
+            console.log("WakeLock nieobsługiwany");
+        }
+    } else {
+        if (window.wakeLock) {
+            window.wakeLock.release();
+            window.wakeLock = null;
+        }
+    }
+};
+
+window.saveTicketData = () => {
+    const startTime = document.getElementById('ticket-start-time').value;
+    const qrData = document.getElementById('custom-qr-data').value;
+    const num = document.getElementById('ticket-num-input').value;
+    const phone = document.getElementById('ticket-phone-input').value;
+    const emit = document.getElementById('ticket-emit-input').value;
+    const price = document.getElementById('ticket-price-input').value;
+    
+    if (!startTime) return alert("Wybierz datę aktywacji!");
+
+    set(ticketRef, {
+        startTime: startTime,
+        qrData: qrData,
+        num: num,
+        phone: phone,
+        emit: emit,
+        price: price,
+        updatedAt: new Date().toISOString()
+    }).then(() => {
+        alert("Dane biletu zapisane w chmurze! ✅");
+    }).catch(e => {
+        console.error("Błąd zapisu biletu:", e);
+        alert("Błąd podczas zapisu danych.");
+    });
 };
 
 window.closeTariff = () => {
@@ -522,27 +1025,45 @@ window.startTicketCountdown = () => {
     if (!startTimeStr) return;
     
     const startTime = new Date(startTimeStr);
-    const durationMinutes = 20; // Domyślnie 20 min
-    const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
+    // Bilet miesięczny - dodajemy dokładnie 1 miesiąc
+    const endTime = new Date(startTime);
+    endTime.setMonth(endTime.getMonth() + 1);
     
     // Formatowanie daty i godziny dla wyświetlacza "Ważny do"
     const options = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
     document.getElementById('ticket-end-time-display').innerText = endTime.toLocaleString('pl-PL', options);
     
+    const countdownElem = document.getElementById('ticket-countdown');
+    const unitElem = document.getElementById('ticket-countdown-unit');
+
     ticketTimerInterval = setInterval(() => {
         const now = new Date();
         const diff = endTime - now;
         
         if (diff <= 0) {
-            document.getElementById('ticket-countdown').innerText = "0";
-            document.getElementById('ticket-countdown').style.color = "var(--danger)";
+            countdownElem.innerText = "0";
+            unitElem.innerText = "dni";
+            countdownElem.style.color = "var(--danger)";
             clearInterval(ticketTimerInterval);
             return;
         }
         
-        const minutesLeft = Math.ceil(diff / 60000);
-        document.getElementById('ticket-countdown').innerText = minutesLeft;
-        document.getElementById('ticket-countdown').style.color = "white";
+        const daysLeft = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hoursLeft = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutesLeft = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+        if (daysLeft > 0) {
+            countdownElem.innerText = daysLeft;
+            unitElem.innerText = "dni";
+        } else if (hoursLeft > 0) {
+            countdownElem.innerText = hoursLeft;
+            unitElem.innerText = "godzin";
+        } else {
+            countdownElem.innerText = minutesLeft;
+            unitElem.innerText = "minut";
+        }
+        
+        countdownElem.style.color = "white";
     }, 1000);
 };
 
@@ -573,7 +1094,7 @@ window.addEventListener('click', () => {
 
 window.openCity = (city) => {
     if (city === 'gdansk') {
-        window.open('https://www.twitch.tv', '_blank');
+        alert("⚠️ UWAGA: TYMCZASOWO NIEDOSTĘPNE");
     }
     document.getElementById('city-dropdown').classList.remove('active');
 };
@@ -590,11 +1111,12 @@ const renderHeat = () => {
 function updateHotRoutesUI() {
     const usage = {};
     tripsData.forEach(t => {
-        const pathSegments = findPath(t.od, t.do);
-        pathSegments.forEach(seg => {
-            const k = seg.sort().join(' ➔ ');
+        const od = t.od.toLowerCase().trim();
+        const d = t.do.toLowerCase().trim();
+        if (od && d) {
+            const k = [od, d].sort().join(' ➔ ');
             usage[k] = (usage[k] || 0) + 1;
-        });
+        }
     });
 
     const sorted = Object.entries(usage)
@@ -602,14 +1124,16 @@ function updateHotRoutesUI() {
         .slice(0, 5);
 
     const list = document.getElementById('hot-routes-list');
+    if (!list) return;
     list.innerHTML = sorted.length ? "" : '<p style="text-align:center; opacity:0.5; font-size:12px;">Brak danych o przejazdach.</p>';
     
     sorted.forEach(([route, count]) => {
+        const color = getHeatColor(count);
         const div = document.createElement('div');
-        div.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:10px 15px; border-radius:12px; border-left:3px solid var(--warning);";
+        div.style.cssText = `display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:10px 15px; border-radius:12px; border-left:4px solid ${color};`;
         div.innerHTML = `
-            <span style="font-size:13px; font-weight:600; text-transform:uppercase;">${route}</span>
-            <span style="background:var(--warning); color:#000; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:900;">${count}x</span>
+            <span style="font-size:13px; font-weight:600; text-transform:uppercase; color:${color};">${route}</span>
+            <span style="background:${color}; color:#000; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:900;">${count}x</span>
         `;
         list.appendChild(div);
     });

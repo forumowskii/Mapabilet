@@ -1,0 +1,17 @@
+{
+  "name": "Regio Licznik",
+  "short_name": "Regio Licznik",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#166534",
+  "description": "Licznik Regiopomorskie by Albatrosova",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/3448/3448339.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
