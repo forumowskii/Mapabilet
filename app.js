@@ -1,17 +1,40 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, set, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 import PhotoSwipeLightbox from 'https://unpkg.com/photoswipe@5.4.3/dist/photoswipe-lightbox.esm.js';
 
 // --- KONFIGURACJA ---
-const firebaseConfig = {
-    apiKey: "AIzaSyCqWomuAPeflvawobPGRlNIqE-7H1cU4bs",
-    authDomain: "biliet.firebaseapp.com",
-    databaseURL: "https://biliet-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "biliet",
-    storageBucket: "biliet.firebasestorage.app",
-    messagingSenderId: "739842092527",
-    appId: "1:739842092527:web:0d8989e6a09b1d78ebda1a"
+// --- LOGOWANIE DO TAJNEJ KONSOLI ---
+const originalLog = console.log;
+const originalError = console.error;
+const secretConsole = () => document.getElementById('secret-console');
+
+console.log = (...args) => {
+    originalLog(...args);
+    const consoleElem = secretConsole();
+    if (consoleElem) {
+        const line = document.createElement('div');
+        line.innerText = `[LOG] ${args.join(' ')}`;
+        consoleElem.appendChild(line);
+        consoleElem.scrollTop = consoleElem.scrollHeight;
+    }
 };
+
+console.error = (...args) => {
+    originalError(...args);
+    const consoleElem = secretConsole();
+    if (consoleElem) {
+        const line = document.createElement('div');
+        line.style.color = '#ff5555';
+        line.innerText = `[ERR] ${args.join(' ')}`;
+        consoleElem.appendChild(line);
+        consoleElem.scrollTop = consoleElem.scrollHeight;
+    }
+};
+
+// Logowanie początkowe
+console.log("System RegioPomorskie zainicjowany...");
+
+import { firebaseConfig } from './firebase-secrets.js';
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
@@ -20,18 +43,22 @@ const statsRef = ref(db, 'stats/oszczednosci');
 const tripsRef = ref(db, 'stats/przejazdy');
 const stationsRef = ref(db, 'stats/stacje_siec');
 const schematyRef = ref(db, 'stats/schematy');
-const stationCountRef = ref(db, 'stats/licznik_stacji');
-const onlineCountRef = ref(db, 'stats/online_count');
+const ticketRef = ref(db, 'stats/bilet_miesieczny');
+const configRef = ref(db, 'stats/config');
 
 let earnedSoFar = 0;
 let stations = {};
 let tripsData = [];
 let galleryData = [];
 let gridActive = false;
+let busClicks = 0;
+let isAdminUnlocked = false;
+let storedPassword = null;
+let isDeveloperModeActive = false;
 
-// Stany Zoomu
-let mapState = { x: 0, y: 0, scale: 1 };
-let heatState = { x: 0, y: 0, scale: 1 };
+// Stany Zoomu (Domyślnie wyśrodkowane na system komunikacyjny)
+let mapState = { x: 50, y: 50, scale: 0.8 };
+let heatState = { x: 50, y: 50, scale: 0.8 };
 
 // Taryfa 2026
 const taryfa = [
@@ -43,96 +70,272 @@ const taryfa = [
 
 // --- SYNCHRONIZACJA FIREBASE ---
 onValue(statsRef, (s) => { earnedSoFar = s.val() || 0; updateProgressUI(); });
-onValue(stationCountRef, (s) => {
-    let count = s.val() || 0;
-    // Fallback: jeśli licznik w bazie jest 0, policz stacje z obiektu stations
-    if (count === 0 && Object.keys(stations).length > 0) {
-        count = Object.keys(stations).length;
+onValue(configRef, (s) => { 
+    if (s.exists()) {
+        const config = s.val();
+        storedPassword = config.password;
+        // Sprawdzamy wszystkie możliwe pola (w tym literówkę z prośby) dla maksymalnej kompatybilności
+        isDeveloperModeActive = config.isDeveloperModeActive || config.maintenance || config.isdevelopermodeasctive || false;
+        updateMaintenanceUI();
     }
+});
+onValue(stationsRef, (s) => { 
+    let rawStations = s.val() || {}; 
+    
+    // Normalizacja kluczy na małe litery i obsługa tablicy
+    stations = {};
+    const adminStationsList = document.getElementById('admin-stations-list');
+    if (adminStationsList) adminStationsList.innerHTML = "";
+
+    if (Array.isArray(rawStations)) {
+        rawStations.forEach((val, idx) => { 
+            if(val) {
+                const key = idx.toString();
+                stations[key] = val; 
+                if (adminStationsList) appendAdminStationItem(adminStationsList, key, val);
+            }
+        });
+    } else {
+        Object.keys(rawStations).forEach(key => {
+            const normalizedKey = key.toLowerCase().trim();
+            stations[normalizedKey] = rawStations[key];
+            if (adminStationsList) appendAdminStationItem(adminStationsList, key, rawStations[key]);
+        });
+    }
+
+    updateDatalists(); 
+    
+    const count = Object.keys(stations).length;
     const badge = document.getElementById('station-count-badge');
     if (badge) {
         badge.innerText = `STACJE: ${count}`;
     }
 });
-onValue(onlineCountRef, (s) => {
-    const count = s.val() || 0;
-    const onlineEl = document.getElementById('online-count-sidebar');
-    if (onlineEl) onlineEl.innerText = count;
-});
-onValue(stationsRef, (s) => { 
-    stations = s.val() || {}; 
-    updateDatalists(); 
-    // Ponowna aktualizacja licznika po pobraniu stacji (jako fallback)
-    const countBadge = document.getElementById('station-count-badge');
-    if (countBadge.innerText === "STACJE: 0") {
-        countBadge.innerText = `STACJE: ${Object.keys(stations).length}`;
+
+function appendAdminStationItem(container, key, data) {
+    const div = document.createElement('div');
+    div.style.cssText = "display:flex; flex-direction:column; gap:5px; background:rgba(255,255,255,0.05); padding:10px; border-radius:10px; font-size:12px; border-left: 3px solid #fbbf24;";
+    div.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <b style="color:#fbbf24">${key.toUpperCase()}</b>
+            <div style="display:flex; gap:5px;">
+                <button onclick="window.editStationName('${key}')" style="width:auto; padding:3px 8px; background:#475569; font-size:9px;">EDYTUJ</button>
+                <button onclick="window.deleteStation('${key}')" style="width:auto; padding:3px 8px; background:var(--danger); font-size:9px;">USUŃ</button>
+            </div>
+        </div>
+        <div style="opacity:0.7">KM: ${data.km} | Parent: ${data.parent || 'BRAK'} | X: ${data.x}, Y: ${data.y}</div>
+    `;
+    container.appendChild(div);
+}
+
+window.editStationName = (key) => {
+    const oldData = stations[key.toLowerCase().trim()];
+    const newName = prompt("Wpisz nową nazwę dla stacji (klucz):", key);
+    const newKm = prompt("Wpisz kilometry (KM):", oldData.km);
+    const newParent = prompt("Wpisz nazwę stacji nadrzędnej (parent):", oldData.parent || "");
+
+    if (newName) {
+        const normalizedNewName = newName.toLowerCase().trim();
+        const updatedData = {
+            ...oldData,
+            km: parseFloat(newKm) || 0,
+            parent: newParent ? newParent.toLowerCase().trim() : null
+        };
+
+        // 1. Zapisz nowe dane stacji
+        set(ref(db, `stats/stacje_siec/${normalizedNewName}`), updatedData).then(() => {
+            // 2. Jeśli nazwa się zmieniła, usuń starą stację i zaktualizuj dzieci
+            if (normalizedNewName !== key.toLowerCase().trim()) {
+                remove(ref(db, `stats/stacje_siec/${key}`));
+                
+                // Aktualizacja wszystkich stacji, które miały tę stację jako parent
+                Object.keys(stations).forEach(sKey => {
+                    if (stations[sKey].parent === key.toLowerCase().trim()) {
+                        set(ref(db, `stats/stacje_siec/${sKey}/parent`), normalizedNewName);
+                    }
+                });
+            }
+            alert("Dane stacji zaktualizowane! ✅");
+        });
     }
-});
+};
+
+window.deleteStation = (key) => {
+    if (confirm(`Czy na pewno chcesz trwale usunąć stację ${key.toUpperCase()}?`)) {
+        remove(ref(db, `stats/stacje_siec/${key}`)).then(() => alert("Stacja usunięta."));
+    }
+};
 onValue(schematyRef, (s) => {
     galleryData = [];
     const list = document.getElementById('gallery-list');
+    const adminList = document.getElementById('admin-gallery-list');
+    
     list.innerHTML = "";
+    if (adminList) adminList.innerHTML = "";
+
     if(s.exists()) {
         s.forEach(child => {
             const item = child.val();
-            galleryData.push(item);
+            const key = child.key;
+            galleryData.push({ ...item, key: key });
             const idx = galleryData.length - 1;
+            
+            // 1. Widok dla użytkownika
             const div = document.createElement('div');
-            div.style.marginBottom = "20px";
-            div.innerHTML = `
-                <div style="font-weight:600; margin-bottom:5px; color:var(--accent); display:flex; justify-content:space-between; align-items:center;">
-                    <span>${item.title || 'Bez tytułu'}</span>
-                    <button onclick="window.processSchemeWithAI(event, '${item.src}')" style="width:auto; padding:5px 10px; font-size:10px; background:var(--warning); color:#000;">ANALIZUJ AI</button>
-                </div>
-                <img src="${item.src}" class="schemat-thumb" onclick="window.fullView(${idx})" alt="${item.title}">
-            `;
+            div.className = 'gallery-item';
+            if (item.src) {
+                div.innerHTML = `
+                    <div style="font-weight:600; margin-bottom:10px; color:var(--accent); display:flex; justify-content:space-between; align-items:center;">
+                        <span>${item.title || 'Bez tytułu'}</span>
+                    </div>
+                    <img src="${item.src}" class="schemat-thumb" onclick="window.fullView(${idx})" alt="${item.title}">
+                `;
+            } else {
+                div.className = 'text-note-item';
+                const isLink = item.title.trim().startsWith('http://') || item.title.trim().startsWith('https://');
+                if (isLink) {
+                    const linkUrl = item.title.trim();
+                    div.innerHTML = `
+                        <div onclick="window.open('${linkUrl}', '_blank')" style="cursor: pointer; width: 100%;">
+                            <i class="fa-solid fa-link" style="margin-right: 10px; color: var(--accent);"></i>
+                            <b>${item.title}</b>
+                        </div>
+                    `;
+                } else {
+                    div.innerHTML = `<b>${item.title}</b>`;
+                }
+            }
             list.appendChild(div);
+
+            // 2. Widok dla admina (do usuwania)
+            if (adminList) {
+                const adminDiv = document.createElement('div');
+                adminDiv.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.05); padding:10px; border-radius:10px; font-size:12px;";
+                adminDiv.innerHTML = `
+                    <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:150px;">${item.title}</span>
+                    <button onclick="window.deleteGalleryItem('${key}')" style="width:auto; padding:5px 10px; background:var(--danger); font-size:10px;">USUŃ</button>
+                `;
+                adminList.appendChild(adminDiv);
+            }
         });
     } else {
-        list.innerHTML = '<p style="text-align:center; opacity:0.5;">Brak schematów w bazie. Dodaj pierwszy powyżej!</p>';
+        list.innerHTML = '<p style="text-align:center; opacity:0.5;">Brak schematów w bazie.</p>';
+        if (adminList) adminList.innerHTML = '<p style="text-align:center; opacity:0.5; font-size:11px;">Baza pusta.</p>';
     }
 });
 onValue(tripsRef, (s) => {
+    tripsData = [];
     const list = document.getElementById('history-list');
     const tableBody = document.getElementById('full-history-table-body');
-    list.innerHTML = "";
-    tableBody.innerHTML = "";
-    tripsData = [];
+    const adminTripsList = document.getElementById('admin-trips-list');
+    
+    if (list) list.innerHTML = "";
+    if (tableBody) tableBody.innerHTML = "";
+    if (adminTripsList) adminTripsList.innerHTML = "";
+
     if(s.exists()) {
         s.forEach(child => {
             const t = child.val();
-            tripsData.push(t);
+            const key = child.key;
+            tripsData.push({ ...t, key: key });
         });
 
         // 1. Pełna tabela (wszystkie)
         tripsData.slice().reverse().forEach(t => {
-            const row = `
-                <tr>
-                    <td>${t.data}</td>
-                    <td>R ${t.nr || '---'}</td>
-                    <td>${t.od.toUpperCase()}</td>
-                    <td>${t.do.toUpperCase()}</td>
-                    <td style="color:var(--success); font-weight:900">${t.zl.toFixed(2)} zł</td>
-                </tr>
-            `;
-            tableBody.innerHTML += row;
+            if (tableBody) {
+                const row = `
+                    <tr>
+                        <td>${t.data}</td>
+                        <td>${t.nr || '---'}</td>
+                        <td>${t.od.toUpperCase()}</td>
+                        <td>${t.do.toUpperCase()}</td>
+                        <td style="color:var(--success); font-weight:900">${t.zl.toFixed(2)} zł</td>
+                    </tr>
+                `;
+                tableBody.innerHTML += row;
+            }
         });
 
         // 2. Główna lista (tylko 3 ostatnie)
         tripsData.slice(-3).reverse().forEach(t => {
-            const div = document.createElement('div');
-            div.className = 'history-item';
-            div.innerHTML = `
-                <div>
-                    <b style="color:#fff">R ${t.nr || '---'}</b> | <small>${t.data}</small><br>
-                    <span>${t.od.toUpperCase()} ➔ ${t.do.toUpperCase()}</span>
-                </div>
-                <div style="color:var(--success); font-weight:900">+${t.zl.toFixed(2)} zł</div>
-            `;
-            list.appendChild(div);
+            if (list) {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                div.innerHTML = `
+                    <div>
+                        <b style="color:#fff">${t.nr || '---'}</b> | <small>${t.data}</small><br>
+                        <span>${t.od.toUpperCase()} ➔ ${t.do.toUpperCase()}</span>
+                    </div>
+                    <div style="color:var(--success); font-weight:900">+${t.zl.toFixed(2)} zł</div>
+                `;
+                list.appendChild(div);
+            }
+        });
+
+        // 3. Widok administratora (wszystkie przejazdy do edycji/usuwania)
+        if (adminTripsList) {
+            tripsData.slice().reverse().forEach(t => {
+                const div = document.createElement('div');
+                div.style.cssText = "display:flex; flex-direction:column; gap:5px; background:rgba(255,255,255,0.05); padding:10px; border-radius:10px; font-size:11px; border-left: 3px solid #f87171;";
+                div.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <b>${t.data} | ${t.nr || 'BRAK NR'}</b>
+                        <div style="display:flex; gap:5px;">
+                            <button onclick="window.editTrip('${t.key}')" style="width:auto; padding:3px 8px; background:#475569; font-size:9px;">EDYTUJ</button>
+                            <button onclick="window.deleteTrip('${t.key}', ${t.zl})" style="width:auto; padding:3px 8px; background:var(--danger); font-size:9px;">USUŃ</button>
+                        </div>
+                    </div>
+                    <div>${t.od.toUpperCase()} ➔ ${t.do.toUpperCase()} | <span style="color:var(--success)">${t.zl.toFixed(2)} zł</span></div>
+                `;
+                adminTripsList.appendChild(div);
+            });
+        }
+    }
+    updateHotRoutesUI();
+});
+
+window.deleteTrip = (key, amount) => {
+    if (confirm("Czy na pewno chcesz usunąć ten przejazd? Spowoduje to również odjęcie kwoty od łącznego zysku.")) {
+        remove(ref(db, `stats/przejazdy/${key}`)).then(() => {
+            set(statsRef, earnedSoFar - amount);
+            alert("Przejazd usunięty. ✅");
         });
     }
-});
+};
+
+window.editTrip = (key) => {
+    const trip = tripsData.find(t => t.key === key);
+    if (!trip) return;
+
+    const newNr = prompt("Numer pociągu:", trip.nr || "");
+    const newData = prompt("Data (DD.MM.RRRR):", trip.data);
+    const newOd = prompt("Stacja początkowa:", trip.od.toUpperCase());
+    const newDo = prompt("Stacja końcowa:", trip.do.toUpperCase());
+    const newZl = prompt("Cena (zł):", trip.zl);
+
+    if (newData && newOd && newDo && newZl) {
+        const oldZl = parseFloat(trip.zl);
+        const updatedZl = parseFloat(newZl);
+        
+        const updatedTrip = {
+            ...trip,
+            nr: newNr,
+            data: newData,
+            od: newOd.toLowerCase().trim(),
+            do: newDo.toLowerCase().trim(),
+            zl: updatedZl
+        };
+        delete updatedTrip.key; // Usuwamy klucz pomocniczy przed zapisem
+
+        set(ref(db, `stats/przejazdy/${key}`), updatedTrip).then(() => {
+            // Aktualizacja łącznego zysku
+            if (oldZl !== updatedZl) {
+                set(statsRef, earnedSoFar - oldZl + updatedZl);
+            }
+            alert("Przejazd zaktualizowany! ✅");
+        });
+    }
+};
 
 // --- SYSTEM ZOOM & PAN ---
 function setupSVGInteractions(svgId, state, renderFn) {
@@ -207,7 +410,7 @@ function setupSVGInteractions(svgId, state, renderFn) {
 
 // --- RENDERING MAP ---
 function findPath(start, end) {
-    if (!start || !end || !stations[start] || !stations[end]) return [];
+    if (!stations[start] || !stations[end]) return [];
     const getAncestors = (name) => {
         const path = [name];
         let curr = stations[name];
@@ -223,19 +426,21 @@ function findPath(start, end) {
     for (const s of pathA) { if (pathB.includes(s)) { lca = s; break; } }
     if (!lca) return [];
     const segments = [];
-    for (let i = 0; i < pathA.indexOf(lca); i++) {
-        if (pathA[i] && pathA[i+1]) segments.push([pathA[i], pathA[i+1]]);
-    }
+    for (let i = 0; i < pathA.indexOf(lca); i++) segments.push([pathA[i], pathA[i+1]]);
     const toEnd = pathB.slice(0, pathB.indexOf(lca) + 1).reverse();
-    for (let i = 0; i < toEnd.length - 1; i++) {
-        if (toEnd[i] && toEnd[i+1]) segments.push([toEnd[i], toEnd[i+1]]);
-    }
+    for (let i = 0; i < toEnd.length - 1; i++) segments.push([toEnd[i], toEnd[i+1]]);
     return segments;
 }
 
+const getHeatColor = (count) => {
+    if (count === 0) return "#475569";
+    if (count < 5) return "#facc15"; // Żółty
+    if (count < 20) return "#f97316"; // Pomarańczowy
+    return "#ef4444"; // Czerwony
+};
+
 function renderMapElements(svgId, state, mode = 'base') {
     const svg = document.getElementById(svgId);
-    if (!svg) return;
     svg.innerHTML = "";
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     g.setAttribute("transform", `translate(${state.x},${state.y}) scale(${state.scale})`);
@@ -250,113 +455,56 @@ function renderMapElements(svgId, state, mode = 'base') {
                 c.style.pointerEvents = "all";
                 c.onmouseover = (e) => {
                     const tip = document.getElementById('coord-info');
-                    if (tip) {
-                        tip.style.display = 'block'; tip.style.left = e.pageX+10+'px'; tip.style.top = e.pageY+10+'px';
-                        tip.innerText = `X: ${x}, Y: ${y}`;
-                    }
+                    tip.style.display = 'block'; tip.style.left = e.pageX+10+'px'; tip.style.top = e.pageY+10+'px';
+                    tip.innerText = `X: ${x}, Y: ${y}`;
                 };
-                c.onmouseout = () => {
-                    const tip = document.getElementById('coord-info');
-                    if (tip) tip.style.display = 'none';
-                };
-                c.onclick = () => { 
-                    const xInput = document.getElementById('new-st-x');
-                    const yInput = document.getElementById('new-st-y');
-                    if (xInput) xInput.value = x; 
-                    if (yInput) yInput.value = y; 
-                };
+                c.onmouseout = () => document.getElementById('coord-info').style.display = 'none';
+                c.onclick = () => { document.getElementById('new-st-x').value = x; document.getElementById('new-st-y').value = y; };
                 g.appendChild(c);
             }
         }
     }
 
-    // --- POPRAWNA LOGIKA GENEROWANIA HEATMAPY --- 
-    const usage = {}; 
+    // 2. Połączenia (Heatmap logic)
+    const usage = {};
+    if(mode === 'heat') {
+        tripsData.forEach(t => {
+            const od = t.od.toLowerCase().trim();
+            const d = t.do.toLowerCase().trim();
+            const pathSegments = findPath(od, d);
+            pathSegments.forEach(seg => {
+                const k = seg.sort().join('|');
+                usage[k] = (usage[k] || 0) + 1;
+            });
+        });
+    }
 
-    if (mode === 'heat') { 
-        // Funkcja pomocnicza do odtwarzania pełnej ścieżki liniowej między stacjami 
-        const getIntermediates = (start, end) => { 
-            const path = []; 
-            let current = start.toLowerCase(); 
-            const target = end.toLowerCase(); 
-            const visited = new Set(); 
- 
-            while (current && current !== target && !visited.has(current)) { 
-                visited.add(current); 
-                path.push(current); 
-                const stData = stations[current]; 
-                current = (stData && stData.parent) ? stData.parent.toLowerCase() : null; 
-            } 
-            if (current === target) { 
-                path.push(target); 
-                return path; 
-            } 
-             
-            // Jeśli nie znaleziono idąc w jedną stronę, spróbuj odwrócić kierunek szukania 
-            const altPath = []; 
-            let altCurrent = target; 
-            const altTarget = start.toLowerCase(); 
-            const altVisited = new Set(); 
- 
-            while (altCurrent && altCurrent !== altTarget && !altVisited.has(altCurrent)) { 
-                altVisited.add(altCurrent); 
-                altPath.push(altCurrent); 
-                const stData = stations[altCurrent]; 
-                altCurrent = (stData && stData.parent) ? stData.parent.toLowerCase() : null; 
-            } 
-            if (altCurrent === altTarget) { 
-                altPath.push(altTarget); 
-                return altPath.reverse(); 
-            } 
-            return [start.toLowerCase(), target]; // Fallback 
-        }; 
- 
-        // Rekonstrukcja przejazdów i inkrementacja mikroodcinków 
-        tripsData.forEach(t => { 
-            if (t.od && t.do) { 
-                const fullRoute = getIntermediates(t.od, t.do); 
-                for (let i = 0; i < fullRoute.length - 1; i++) { 
-                    const k = [fullRoute[i], fullRoute[i+1]].sort().join('|'); 
-                    usage[k] = (usage[k] || 0) + 1; 
-                } 
-            } 
-        }); 
-    } 
- 
-    // Rysowanie linii połączeń kolejowych na mapie/heatmapie 
-    Object.keys(stations).forEach(name => { 
-        const s = stations[name]; 
-        if (s.parent && stations[s.parent.toLowerCase()]) { 
-            const p = stations[s.parent.toLowerCase()]; 
-            const line = document.createElementNS("http://www.w3.org/2000/svg", "line"); 
-            line.setAttribute("x1", s.x); line.setAttribute("y1", s.y); 
-            line.setAttribute("x2", p.x); line.setAttribute("y2", p.y); 
-             
-            if (mode === 'heat') { 
-                const pairKey = [name.toLowerCase(), s.parent.toLowerCase()].sort().join('|'); 
-                const count = usage[pairKey] || 0; 
-                 
-                line.style.strokeWidth = "6"; 
-                line.style.strokeLinecap = "round"; 
-                // Kolorowanie odcinka zależnie od skali przejazdów 
-                line.style.stroke = count === 0 ? "#334155" : count < 4 ? "#facc15" : count < 12 ? "#f97316" : "#ef4444"; 
-                line.style.opacity = "1"; 
-            } else { 
-                line.style.stroke = "#6366f1"; 
-                line.style.strokeWidth = "2.5"; 
-                line.style.opacity = "0.4"; 
-            } 
-            g.appendChild(line); 
-        } 
-    }); 
-
+    Object.keys(stations).forEach(name => {
+        const s = stations[name];
+        if(s.parent && stations[s.parent]) {
+            const p = stations[s.parent];
+            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+            line.setAttribute("x1", s.x); line.setAttribute("y1", s.y);
+            line.setAttribute("x2", p.x); line.setAttribute("y2", p.y);
+            
+            if(mode === 'heat') {
+                const count = usage[[name, s.parent].sort().join('|')] || 0;
+                line.style.strokeWidth = 6; line.style.strokeLinecap = "round";
+                line.style.stroke = getHeatColor(count);
+            } else {
+                line.style.stroke = "#6366f1"; line.style.strokeWidth = 2; line.style.opacity = 0.4;
+            }
+            g.appendChild(line);
+        }
+    });
 
     // 3. Stacje i Etykiety
     const stationNames = Object.keys(stations);
     stationNames.forEach((name, index) => {
         const s = stations[name];
-        if (!s) return;
         
+        // Optymalizacja etykiet: przy dużym oddaleniu (scale < 0.8) pokazuj tylko co drugą stację
+        // Przy jeszcze większym (scale < 0.4) tylko co czwartą
         let showLabel = true;
         if (state.scale < 0.4) {
             if (index % 4 !== 0) showLabel = false;
@@ -365,13 +513,13 @@ function renderMapElements(svgId, state, mode = 'base') {
         }
 
         const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        dot.setAttribute("cx", s.x || 0); dot.setAttribute("cy", s.y || 0); dot.setAttribute("r", 4/state.scale);
+        dot.setAttribute("cx", s.x); dot.setAttribute("cy", s.y); dot.setAttribute("r", 4/state.scale);
         dot.setAttribute("fill", "#fff");
         g.appendChild(dot);
 
         if (showLabel) {
             const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
-            txt.setAttribute("x", (s.x || 0) + (8/state.scale)); txt.setAttribute("y", (s.y || 0) + (4/state.scale));
+            txt.setAttribute("x", s.x + (8/state.scale)); txt.setAttribute("y", s.y + (4/state.scale));
             txt.setAttribute("fill", "#94a3b8"); txt.setAttribute("font-size", (10/state.scale)+"px");
             txt.textContent = name.toUpperCase();
             g.appendChild(txt);
@@ -383,10 +531,12 @@ function renderMapElements(svgId, state, mode = 'base') {
 
 // --- LOGIKA BIZNESOWA ---
 window.calculatePrice = () => {
-    const f = document.getElementById('route-from').value.toLowerCase();
-    const t = document.getElementById('route-to').value.toLowerCase();
+    const f = document.getElementById('route-from').value.toLowerCase().trim();
+    const t = document.getElementById('route-to').value.toLowerCase().trim();
     const d = parseFloat(document.getElementById('discount-select').value);
-    if(!stations[f] || !stations[t]) return alert("Błąd stacji!");
+    
+    if(!f || !t) return alert("Wpisz lub wybierz stację początkową i końcową!");
+    if(!stations[f] || !stations[t]) return alert("Błąd: Jedna z wpisanych stacji nie istnieje w bazie!");
     
     const dist = Math.abs(stations[f].km - stations[t].km);
     const p = taryfa.find(r => dist <= r.max) || {cena: 30};
@@ -397,16 +547,25 @@ window.calculatePrice = () => {
 };
 
 window.addNewTrip = () => {
-    const f = document.getElementById('route-from').value.toLowerCase();
-    const t = document.getElementById('route-to').value.toLowerCase();
+    const f = document.getElementById('route-from').value.toLowerCase().trim();
+    const t = document.getElementById('route-to').value.toLowerCase().trim();
     const zl = parseFloat(document.getElementById('trip-amount').value);
     const nr = document.getElementById('regio-num').value;
-    if(!f || !t || isNaN(zl)) return;
+    if(!f || !t || isNaN(zl)) return alert("Uzupełnij dane przejazdu!");
+
+    if(!stations[f] || !stations[t]) return alert("Błąd: Jedna z wpisanych stacji nie istnieje w bazie!");
 
     push(tripsRef, {
         od: f, do: t, zl: zl, nr: nr,
         data: new Date().toLocaleDateString('pl-PL')
-    }).then(() => set(statsRef, earnedSoFar + zl));
+    }).then(() => {
+        set(statsRef, earnedSoFar + zl);
+        // Resetowanie pól po dodaniu
+        document.getElementById('route-from').value = "";
+        document.getElementById('route-to').value = "";
+        document.getElementById('trip-amount').value = "";
+        document.getElementById('regio-num').value = "";
+    });
 };
 
 window.saveNewStation = () => {
@@ -420,20 +579,174 @@ window.saveNewStation = () => {
     set(stationsRef, stations).then(() => renderBase());
 };
 
+window.deleteGalleryItem = (key) => {
+    if (confirm("Czy na pewno chcesz usunąć ten element z galerii?")) {
+        const itemRef = ref(db, `stats/schematy/${key}`);
+        remove(itemRef).then(() => {
+            console.log(`Usunięto element: ${key}`);
+        }).catch(e => {
+            console.error("Błąd podczas usuwania:", e);
+            alert("Błąd podczas usuwania elementu.");
+        });
+    }
+};
+
 window.addNewGalleryItem = () => {
     const title = document.getElementById('new-gallery-title').value;
     const src = document.getElementById('new-gallery-src').value;
-    if(!title || !src) return alert("Podaj tytuł i link!");
+    if(!title) return alert("Podaj chociaż tytuł lub tekst!");
     
-    push(schematyRef, { 
+    const newItem = { 
         title: title, 
-        src: src,
-        w: 1600, // Domyślne wymiary
+        src: src || null,
+        w: 1600,
         h: 2000 
-    }).then(() => {
+    };
+    
+    push(schematyRef, newItem).then(() => {
         document.getElementById('new-gallery-title').value = "";
         document.getElementById('new-gallery-src').value = "";
+        window.toggleGalleryEditor(); // Zamknij po dodaniu
     });
+};
+
+window.toggleGalleryEditor = () => {
+    const panel = document.getElementById('gallery-editor-panel');
+    const btn = document.getElementById('gallery-edit-btn');
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        btn.innerText = "❌ ANULUJ";
+        btn.style.background = "var(--danger)";
+    } else {
+        panel.style.display = 'none';
+        btn.innerText = "🛠️ EDYTOR";
+        btn.style.background = "var(--accent)";
+    }
+};
+
+// --- SEKRETNY PANEL ---
+window.handleBusClick = () => {
+    if (isAdminUnlocked) {
+        window.openSecretPanel();
+        return;
+    }
+    
+    busClicks++;
+    if (busClicks === 10) {
+        busClicks = 0;
+        isAdminUnlocked = true;
+        document.getElementById('admin-bus-trigger').classList.add('admin-active');
+        window.openSecretPanel();
+    }
+};
+
+window.openSecretPanel = () => {
+    window.closeAllModals();
+    document.getElementById('secret-modal').classList.add('active');
+    
+    const statusText = document.getElementById('secret-status-text');
+    if (!storedPassword) {
+        statusText.innerText = "Witaj w Panelu Tajnym! Wymyśl hasło, aby je zapisać:";
+        document.querySelector('#secret-login-view button').innerText = "USTAW HASŁO";
+    } else {
+        statusText.innerText = "Wpisz hasło, aby wejść:";
+        document.querySelector('#secret-login-view button').innerText = "ZALOGUJ";
+    }
+
+    // Załaduj aktualne dane biletu do pól edycji
+    onValue(ticketRef, (s) => {
+        if (s.exists()) {
+            const data = s.val();
+            document.getElementById('ticket-start-time').value = data.startTime || "";
+            document.getElementById('custom-qr-data').value = data.qrData || "";
+            document.getElementById('ticket-num-input').value = data.num || "ALV 000067";
+            document.getElementById('ticket-phone-input').value = data.phone || "603865798";
+            document.getElementById('ticket-emit-input').value = data.emit || "POLREGIO";
+            document.getElementById('ticket-price-input').value = data.price || "153,00";
+        }
+    }, { onlyOnce: true });
+};
+
+window.checkSecretPassword = () => {
+    const input = document.getElementById('secret-password-input');
+    const pass = input.value;
+    if (!pass) return alert("Wpisz hasło!");
+
+    if (!storedPassword) {
+        // Ustawianie hasła po raz pierwszy - używamy konkretnej ścieżki, by nie nadpisać reszty configu
+        set(ref(db, 'stats/config/password'), pass).then(() => {
+            alert("Hasło zostało ustawione i zapisane w chmurze! ✅");
+            window.showSecretContent();
+        });
+    } else {
+        // Logowanie
+        if (pass === storedPassword) {
+            window.showSecretContent();
+        } else {
+            alert("Błędne hasło! ❌");
+        }
+    }
+    input.value = "";
+};
+
+window.showSecretContent = () => {
+    document.getElementById('secret-login-view').style.display = 'none';
+    document.getElementById('secret-content-view').style.display = 'flex';
+    isAdminUnlocked = true;
+    updateMaintenanceUI();
+    
+    // Załaduj statystyki
+    const stationsCount = Object.keys(stations).length;
+    const tripsCount = tripsData.length;
+    const totalEarned = earnedSoFar.toFixed(2);
+    document.getElementById('adv-stats-text').innerHTML = `
+        🚀 Aktywne stacje: <b>${stationsCount}</b><br>
+        📅 Wszystkie przejazdy: <b>${tripsCount}</b><br>
+        💎 Łączny zysk: <b>${totalEarned} zł</b><br>
+        🛰️ System: <b>RegioPomorskie PRO 2.0</b>
+    `;
+};
+
+window.requestPasswordChange = () => {
+    // 1. Ostrzeżenie
+    alert("⚠️ UWAGA ! to zmieni hassło do wszystkich powiązanych z aplikacją rzeczy");
+    
+    // 2. Kod zabezpieczający
+    const code = prompt("Wpisz kod zabezpieczający:");
+    if (code !== "2583") {
+        return alert("Błędny kod! Akcja przerwana. ❌");
+    }
+    
+    // 3. Nowe hasło
+    const newPass = prompt("Wpisz nowe hasło administratora:");
+    if (!newPass) return alert("Hasło nie może być puste!");
+    
+    if (confirm(`Czy na pewno chcesz zmienić hasło na: ${newPass}?`)) {
+        set(ref(db, 'stats/config/password'), newPass).then(() => {
+            alert("Hasło zostało pomyślnie zmienione! ✅");
+            storedPassword = newPass; // Aktualizacja lokalna
+        }).catch(e => {
+            console.error("Błąd zmiany hasła:", e);
+            alert("Błąd podczas zapisywania nowego hasła.");
+        });
+    }
+};
+
+// BAJERY
+window.toggleRainbowMode = (e) => {
+    document.body.classList.toggle('rainbow-active');
+    alert("Tęczowy tryb mapy aktywowany! 🌈");
+};
+
+window.simulateMillions = () => {
+    set(statsRef, 1000000.00).then(() => {
+        alert("Właśnie stałeś się milionerem! 💰💰💰");
+    });
+};
+
+window.boostAnimations = () => {
+    document.documentElement.style.setProperty('--transition-speed', '0.1s');
+    alert("Prędkość animacji zwiększona! 🚀");
 };
 
 window.processSchemeWithAI = async (e, imageUrl) => {
@@ -513,152 +826,74 @@ window.fullView = (index) => {
     lightbox.loadAndOpen(index);
 };
 
-// --- OBSŁUGA UTWORZONYCH DROPDOWNÓW (SKĄD / DOKĄD) --- 
-function renderDropdownOptions(type, filterQuery = "") { 
-    const listEl = document.getElementById(`dropdown-list-${type}`); 
-    if (!listEl) return; 
-    listEl.innerHTML = ""; 
-    
-    const query = filterQuery.toLowerCase().trim(); 
-    Object.keys(stations) 
-        .filter(name => name.toLowerCase().includes(query)) 
-        .sort() 
-        .forEach(key => { 
-            const item = document.createElement('div'); 
-            item.className = 'dropdown-item'; 
-            item.innerText = key.toUpperCase(); 
-            item.addEventListener('click', () => { 
-                document.getElementById(`route-${type}`).value = key.toUpperCase(); 
-                window.closeDropdown(type); 
-            }); 
-            listEl.appendChild(item); 
-        }); 
-} 
-
-function updateDatalists() { 
-    renderDropdownOptions('from'); 
-    renderDropdownOptions('to'); 
-} 
-
-window.openDropdown = (type) => { 
-    // Zamknij drugi dropdown przed otwarciem tego
-    window.closeDropdown(type === 'from' ? 'to' : 'from'); 
-    
-    const container = document.getElementById(`container-${type}`);
-    const list = document.getElementById(`dropdown-list-${type}`);
-    
-    if(container) container.classList.add('open'); 
-    if(list) {
-        list.classList.add('active'); 
-        renderDropdownOptions(type, document.getElementById(`route-${type}`).value); 
-    }
-}; 
-
-window.closeDropdown = (type) => { 
-    const container = document.getElementById(`container-${type}`); 
-    const list = document.getElementById(`dropdown-list-${type}`); 
-    if(container) container.classList.remove('open'); 
-    if(list) list.classList.remove('active'); 
-}; 
-
-window.toggleDropdown = (type, event) => { 
-    if(event) {
-        event.preventDefault();
-        event.stopPropagation();
-    }
-    const list = document.getElementById(`dropdown-list-${type}`); 
-    if (list && list.classList.contains('active')) { 
-        window.closeDropdown(type); 
-    } else { 
-        window.openDropdown(type); 
-    } 
-}; 
-
-window.filterDropdown = (type) => { 
-    const val = document.getElementById(`route-${type}`).value; 
-    // Otwórz jeśli zamknięte podczas wpisywania
-    const list = document.getElementById(`dropdown-list-${type}`);
-    if (list && !list.classList.contains('active')) {
-        window.openDropdown(type);
-    }
-    renderDropdownOptions(type, val); 
-}; 
-
-// --- KONTROLA MENU GÓRNEGO MIAST --- 
-window.toggleCityMenu = (event) => { 
-    if(event) event.stopPropagation(); 
-    document.getElementById('city-menu-dropdown').classList.toggle('active'); 
-}; 
-
-window.toggleCityDropdown = (e) => {
-    if (e) e.stopPropagation();
-    const selector = document.querySelector('.location-selector');
-    const dropdown = document.getElementById('city-dropdown');
-    if (selector) selector.classList.toggle('active');
-    if (dropdown) dropdown.classList.toggle('active');
+// --- UI / MENU ---
+window.copyToClipboard = (text, element) => {
+    navigator.clipboard.writeText(text).then(() => {
+        const toast = document.getElementById('copy-toast');
+        if (toast) {
+            toast.classList.add('active');
+            setTimeout(() => {
+                toast.classList.remove('active');
+            }, 2000);
+        }
+    }).catch(err => {
+        console.error('Błąd kopiowania:', err);
+    });
 };
-
-window.openCity = (city) => {
-    if (city === 'gdansk') {
-        window.open('https://www.twitch.tv', '_blank');
-    }
-    window.toggleCityDropdown();
-};
-
-window.selectCityModule = (moduleName, cityName) => { 
-    const titleEl = document.getElementById('current-module-title');
-    if (titleEl) titleEl.innerText = moduleName; 
-    
-    const subtitleEl = document.getElementById('current-city-subtitle');
-    if (subtitleEl) subtitleEl.innerText = cityName; 
-    
-    document.querySelectorAll('.city-option').forEach(opt => { 
-        if (opt.innerText.includes(cityName)) opt.classList.add('active'); 
-        else opt.classList.remove('active'); 
-    }); 
-    const menu = document.getElementById('city-menu-dropdown');
-    if(menu) menu.classList.remove('active'); 
-}; 
-
-// Globalne zamykanie po kliknięciu w tło 
-document.addEventListener('click', (e) => { 
-    if (!e.target.closest('#container-from')) window.closeDropdown('from'); 
-    if (!e.target.closest('#container-to')) window.closeDropdown('to'); 
-    if (!e.target.closest('.nav-brand-selector')) { 
-        const menu = document.getElementById('city-menu-dropdown'); 
-        if(menu) menu.classList.remove('active'); 
-    } 
-    if (!e.target.closest('.location-selector')) {
-        const selector = document.querySelector('.location-selector');
-        const dropdown = document.getElementById('city-dropdown');
-        if (selector) selector.classList.remove('active');
-        if (dropdown) dropdown.classList.remove('active');
-    }
-});
 
 window.toggleMenu = () => {
+    const isOpening = !document.getElementById('side-menu').classList.contains('active');
     document.getElementById('side-menu').classList.toggle('active');
     document.getElementById('menu-overlay').classList.toggle('active');
+    
+    if (isOpening) {
+        document.body.classList.add('no-scroll');
+    } else {
+        document.body.classList.remove('no-scroll');
+    }
 };
 window.closeMenu = () => {
     document.getElementById('side-menu').classList.remove('active');
     document.getElementById('menu-overlay').classList.remove('active');
+    document.body.classList.remove('no-scroll');
+};
+
+window.setActiveMenuItem = (id) => {
+    document.querySelectorAll('.menu-item').forEach(el => el.classList.remove('active'));
+    const activeItem = document.getElementById(id);
+    if (activeItem) activeItem.classList.add('active');
+};
+
+window.closeAllModals = () => {
+    document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
+    window.setActiveMenuItem('menu-home');
+    window.closeMenu();
+    document.body.classList.remove('no-scroll');
 };
 
 function updateProgressUI() {
     const p = Math.min((earnedSoFar / 150) * 100, 100);
-    const bar = document.getElementById('bar-fill');
-    const label = document.getElementById('percentage-label');
-    const val = document.getElementById('earned-val');
-    if (bar) bar.style.width = p + "%";
-    if (label) label.innerText = p.toFixed(1) + "%";
-    if (val) val.innerText = earnedSoFar.toFixed(2) + " zł";
+    document.getElementById('bar-fill').style.width = p + "%";
+    document.getElementById('percentage-label').innerText = p.toFixed(1) + "%";
+    document.getElementById('earned-val').innerText = earnedSoFar.toFixed(2) + " zł";
+}
+
+function updateDatalists() {
+    const dl = document.getElementById('stations-list');
+    if (!dl) return;
+    
+    dl.innerHTML = "";
+    
+    Object.keys(stations).sort().forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k.toUpperCase();
+        dl.appendChild(opt);
+    });
 }
 
 window.filterStations = () => {
     const q = document.getElementById('station-search').value.toLowerCase();
     const g = document.getElementById('full-station-grid');
-    if (!g) return;
     g.innerHTML = "";
     Object.keys(stations).filter(n => n.includes(q)).sort().forEach(k => {
         g.innerHTML += `<div style="background:rgba(255,255,255,0.05);padding:10px;border-radius:10px;"><b>${k.toUpperCase()}</b><br><small>${stations[k].km} km</small></div>`;
@@ -666,54 +901,232 @@ window.filterStations = () => {
 };
 
 // Sterowanie oknami
-window.openMap = () => { window.closeMenu(); document.getElementById('map-modal').classList.add('active'); renderBase(); };
-window.closeMap = () => document.getElementById('map-modal').classList.remove('active');
-window.openHeatmap = () => { document.getElementById('heatmap-modal').classList.add('active'); renderHeat(); };
-window.closeHeatmap = () => document.getElementById('heatmap-modal').classList.remove('active');
-window.openGallery = () => { window.closeMenu(); document.getElementById('gallery-modal').classList.add('active'); };
-window.closeGallery = () => document.getElementById('gallery-modal').classList.remove('active');
-window.openSettings = () => { window.closeMenu(); document.getElementById('settings-modal').classList.add('active'); window.filterStations(); };
-window.closeSettings = () => document.getElementById('settings-modal').classList.remove('active');
-window.openFullHistory = () => { window.closeMenu(); document.getElementById('history-modal').classList.add('active'); };
-window.closeFullHistory = () => document.getElementById('history-modal').classList.remove('active');
+window.openMap = () => { 
+    window.closeAllModals();
+    document.getElementById('map-modal').classList.add('active'); 
+    window.setActiveMenuItem('menu-map');
+    document.body.classList.add('no-scroll');
+    renderBase(); 
+};
+window.closeMap = () => {
+    document.getElementById('map-modal').classList.remove('active');
+    document.body.classList.remove('no-scroll');
+};
+
+window.openHeatmap = () => { 
+    window.closeAllModals();
+    document.getElementById('heatmap-modal').classList.add('active'); 
+    window.setActiveMenuItem('menu-heatmap');
+    document.body.classList.add('no-scroll');
+    renderHeat(); 
+};
+window.closeHeatmap = () => {
+    document.getElementById('heatmap-modal').classList.remove('active');
+    document.body.classList.remove('no-scroll');
+};
+
+window.openGallery = () => { 
+    window.closeAllModals();
+    document.getElementById('gallery-modal').classList.add('active'); 
+    window.setActiveMenuItem('menu-gallery');
+    document.body.classList.add('no-scroll');
+};
+window.closeGallery = () => {
+    document.getElementById('gallery-modal').classList.remove('active');
+    document.body.classList.remove('no-scroll');
+};
+
+window.openSettings = () => { 
+    window.closeAllModals();
+    document.getElementById('settings-modal').classList.add('active'); 
+    window.setActiveMenuItem('menu-settings');
+    document.body.classList.add('no-scroll');
+    window.filterStations(); 
+};
+window.closeSettings = () => {
+    document.getElementById('settings-modal').classList.remove('active');
+    document.body.classList.remove('no-scroll');
+};
+
+window.openFullHistory = () => { 
+    window.closeAllModals();
+    document.getElementById('history-modal').classList.add('active'); 
+    window.setActiveMenuItem('menu-history');
+    document.body.classList.add('no-scroll');
+};
+window.closeFullHistory = () => {
+    document.getElementById('history-modal').classList.remove('active');
+    document.body.classList.remove('no-scroll');
+};
+
+// Funkcja handleSearch została usunięta, ponieważ pola wyszukiwania zostały zastąpione polami wyboru (select).
 
 let ticketTimerInterval = null;
 
 window.openTariff = () => {
-    window.closeMenu();
+    window.closeAllModals();
     document.getElementById('tariff-modal').classList.add('active');
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    document.getElementById('ticket-start-time').value = now.toISOString().slice(0, 16);
-    window.startTicketCountdown();
+    window.setActiveMenuItem('menu-tariff');
+    document.body.classList.add('no-scroll');
+    
+    // Pobierz dane z Firebase i zaktualizuj widok
+    onValue(ticketRef, (s) => {
+        if (s.exists()) {
+            const data = s.val();
+            const start = new Date(data.startTime);
+            const end = new Date(start);
+            end.setMonth(end.getMonth() + 1);
+
+            const opt = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+            document.getElementById('ticket-start-display').innerText = start.toLocaleString('pl-PL', opt);
+            document.getElementById('ticket-end-display').innerText = end.toLocaleString('pl-PL', opt);
+            
+            // Aktualizacja pozostałych danych
+            document.getElementById('ticket-num-display').innerText = data.num || 'ALV 000067';
+            document.getElementById('ticket-phone-display').innerText = data.phone || '603865798';
+            document.getElementById('ticket-emit-display').innerText = data.emit || 'POLREGIO';
+            document.getElementById('ticket-price-display').innerText = `${data.price || '153,00'} zł`;
+
+            if (data.qrData) {
+                const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(data.qrData)}`;
+                document.getElementById('ticket-qr-img').src = qrUrl;
+            }
+
+            // Uruchom odliczanie na żywo w nagłówku
+            window.updateLiveTicketTimer(end);
+        }
+    }, { onlyOnce: true });
+};
+
+let liveTimerInterval = null;
+window.updateLiveTicketTimer = (endTime) => {
+    if (liveTimerInterval) clearInterval(liveTimerInterval);
+    
+    const timerElem = document.getElementById('ticket-timer-top');
+    
+    liveTimerInterval = setInterval(() => {
+        const now = new Date();
+        const diff = endTime - now;
+        
+        if (diff <= 0) {
+            timerElem.innerText = "Bilet wygasł";
+            clearInterval(liveTimerInterval);
+            return;
+        }
+        
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+        
+        if (days > 0) {
+            timerElem.innerText = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+        } else {
+            timerElem.innerText = `${hours}h ${minutes}m ${seconds}s`;
+        }
+    }, 1000);
+};
+
+window.toggleQRView = async () => {
+    const overlay = document.getElementById('qr-overlay');
+    const isActive = overlay.classList.toggle('active');
+
+    if (isActive) {
+        // Próba rozjaśnienia ekranu (Wake Lock API zapobiega wygaszaniu, 
+        // a symulacja jasności odbywa się przez białe tło pod kodem QR)
+        try {
+            if ('wakeLock' in navigator) {
+                window.wakeLock = await navigator.wakeLock.request('screen');
+            }
+        } catch (err) {
+            console.log("WakeLock nieobsługiwany");
+        }
+    } else {
+        if (window.wakeLock) {
+            window.wakeLock.release();
+            window.wakeLock = null;
+        }
+    }
+};
+
+window.saveTicketData = () => {
+    const startTime = document.getElementById('ticket-start-time').value;
+    const qrData = document.getElementById('custom-qr-data').value;
+    const num = document.getElementById('ticket-num-input').value;
+    const phone = document.getElementById('ticket-phone-input').value;
+    const emit = document.getElementById('ticket-emit-input').value;
+    const price = document.getElementById('ticket-price-input').value;
+    
+    if (!startTime) return alert("Wybierz datę aktywacji!");
+
+    set(ticketRef, {
+        startTime: startTime,
+        qrData: qrData,
+        num: num,
+        phone: phone,
+        emit: emit,
+        price: price,
+        updatedAt: new Date().toISOString()
+    }).then(() => {
+        alert("Dane biletu zapisane w chmurze! ✅");
+    }).catch(e => {
+        console.error("Błąd zapisu biletu:", e);
+        alert("Błąd podczas zapisu danych.");
+    });
 };
 
 window.closeTariff = () => {
     document.getElementById('tariff-modal').classList.remove('active');
+    document.body.classList.remove('no-scroll');
     if (ticketTimerInterval) clearInterval(ticketTimerInterval);
 };
 
 window.startTicketCountdown = () => {
     if (ticketTimerInterval) clearInterval(ticketTimerInterval);
+    
     const startTimeStr = document.getElementById('ticket-start-time').value;
     if (!startTimeStr) return;
+    
     const startTime = new Date(startTimeStr);
-    const durationMinutes = 20;
-    const endTime = new Date(startTime.getTime() + durationMinutes * 60000);
+    // Bilet miesięczny - dodajemy dokładnie 1 miesiąc
+    const endTime = new Date(startTime);
+    endTime.setMonth(endTime.getMonth() + 1);
+    
+    // Formatowanie daty i godziny dla wyświetlacza "Ważny do"
     const options = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
     document.getElementById('ticket-end-time-display').innerText = endTime.toLocaleString('pl-PL', options);
+    
+    const countdownElem = document.getElementById('ticket-countdown');
+    const unitElem = document.getElementById('ticket-countdown-unit');
+
     ticketTimerInterval = setInterval(() => {
         const now = new Date();
         const diff = endTime - now;
+        
         if (diff <= 0) {
-            document.getElementById('ticket-countdown').innerText = "0";
-            document.getElementById('ticket-countdown').style.color = "var(--danger)";
+            countdownElem.innerText = "0";
+            unitElem.innerText = "dni";
+            countdownElem.style.color = "var(--danger)";
             clearInterval(ticketTimerInterval);
             return;
         }
-        const minutesLeft = Math.ceil(diff / 60000);
-        document.getElementById('ticket-countdown').innerText = minutesLeft;
-        document.getElementById('ticket-countdown').style.color = "white";
+        
+        const daysLeft = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hoursLeft = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutesLeft = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+        if (daysLeft > 0) {
+            countdownElem.innerText = daysLeft;
+            unitElem.innerText = "dni";
+        } else if (hoursLeft > 0) {
+            countdownElem.innerText = hoursLeft;
+            unitElem.innerText = "godzin";
+        } else {
+            countdownElem.innerText = minutesLeft;
+            unitElem.innerText = "minut";
+        }
+        
+        countdownElem.style.color = "white";
     }, 1000);
 };
 
@@ -724,10 +1137,29 @@ window.updateQRCode = () => {
 };
 
 window.adjustTicketTime = (offset) => {
+    // Prosta funkcja do zmiany ceny lub czasu (na potrzeby wizualne)
     const priceElem = document.getElementById('ticket-price-val');
     let currentPrice = parseFloat(priceElem.innerText.replace(',', '.'));
     currentPrice = Math.max(0, currentPrice + (offset / 10));
     priceElem.innerText = currentPrice.toFixed(2).replace('.', ',');
+};
+
+window.toggleCityDropdown = (e) => {
+    if (e) e.stopPropagation();
+    document.getElementById('city-dropdown').classList.toggle('active');
+};
+
+// Zamknij dropdown przy kliknięciu poza nim
+window.addEventListener('click', () => {
+    const dd = document.getElementById('city-dropdown');
+    if (dd && dd.classList.contains('active')) dd.classList.remove('active');
+});
+
+window.openCity = (city) => {
+    if (city === 'gdansk') {
+        alert("⚠️ UWAGA: TYMCZASOWO NIEDOSTĘPNE");
+    }
+    document.getElementById('city-dropdown').classList.remove('active');
 };
 
 window.toggleGrid = () => { gridActive = !gridActive; renderBase(); document.getElementById('grid-btn').innerText = `SIATKA: ${gridActive?'WŁ':'WYŁ'}`; };
@@ -742,8 +1174,10 @@ const renderHeat = () => {
 function updateHotRoutesUI() {
     const usage = {};
     tripsData.forEach(t => {
-        if(t.od && t.do) {
-            const k = [t.od.toLowerCase(), t.do.toLowerCase()].sort().join('|');
+        const od = t.od.toLowerCase().trim();
+        const d = t.do.toLowerCase().trim();
+        if (od && d) {
+            const k = [od, d].sort().join(' ➔ ');
             usage[k] = (usage[k] || 0) + 1;
         }
     });
@@ -757,12 +1191,12 @@ function updateHotRoutesUI() {
     list.innerHTML = sorted.length ? "" : '<p style="text-align:center; opacity:0.5; font-size:12px;">Brak danych o przejazdach.</p>';
     
     sorted.forEach(([route, count]) => {
+        const color = getHeatColor(count);
         const div = document.createElement('div');
-        div.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:10px 15px; border-radius:12px; border-left:3px solid var(--warning);";
-        const routeLabel = route.replace('|', ' ➔ ').toUpperCase();
+        div.style.cssText = `display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:10px 15px; border-radius:12px; border-left:4px solid ${color};`;
         div.innerHTML = `
-            <span style="font-size:13px; font-weight:600; text-transform:uppercase;">${routeLabel}</span>
-            <span style="background:var(--warning); color:#000; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:900;">${count}x</span>
+            <span style="font-size:13px; font-weight:600; text-transform:uppercase; color:${color};">${route}</span>
+            <span style="background:${color}; color:#000; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:900;">${count}x</span>
         `;
         list.appendChild(div);
     });
@@ -770,3 +1204,74 @@ function updateHotRoutesUI() {
 
 setupSVGInteractions('svg-map', mapState, renderBase);
 setupSVGInteractions('svg-heatmap', heatState, renderHeat);
+
+// --- OBSŁUGA TRYBU KONSERWACJI ---
+function updateMaintenanceUI() {
+    const overlay = document.getElementById('maintenance-overlay');
+    const mainContent = document.getElementById('main-app-content');
+    const toggleBtn = document.getElementById('maintenance-toggle-btn');
+    
+    // Jeśli admin jest zalogowany, ukrywamy nakładkę i pokazujemy stronę niezależnie od trybu konserwacji
+    const shouldShowMaintenance = isDeveloperModeActive && !isAdminUnlocked;
+
+    if (overlay) {
+        if (shouldShowMaintenance) {
+            overlay.classList.add('active');
+            // Resetujemy widok logowania przy każdym pokazaniu nakładki
+            const trigger = document.getElementById('maintenance-login-trigger');
+            const panel = document.getElementById('maintenance-login-panel');
+            if (trigger) trigger.style.display = 'block';
+            if (panel) panel.style.display = 'none';
+        } else {
+            overlay.classList.remove('active');
+        }
+    }
+
+    if (mainContent) {
+        if (shouldShowMaintenance) {
+            mainContent.classList.add('hidden');
+        } else {
+            mainContent.classList.remove('hidden');
+        }
+    }
+    
+    if (toggleBtn) {
+        toggleBtn.innerText = isDeveloperModeActive ? "WŁĄCZONY" : "WYŁĄCZONY";
+        toggleBtn.style.background = isDeveloperModeActive ? "var(--success)" : "var(--danger)";
+    }
+}
+
+window.checkMaintenancePassword = () => {
+    const input = document.getElementById('m-password-input');
+    const pass = input.value;
+    if (!pass) return alert("Wpisz hasło!");
+
+    if (pass === storedPassword) {
+        isAdminUnlocked = true;
+        document.getElementById('admin-bus-trigger').classList.add('admin-active');
+        updateMaintenanceUI();
+        alert("Zalogowano pomyślnie! ✅ Nakładka została zdjęta.");
+    } else {
+        alert("Błędne hasło! ❌");
+    }
+    input.value = "";
+};
+
+window.showMaintenanceLogin = () => {
+    const trigger = document.getElementById('maintenance-login-trigger');
+    const panel = document.getElementById('maintenance-login-panel');
+    if (trigger) trigger.style.display = 'none';
+    if (panel) panel.style.display = 'block';
+};
+
+window.toggleMaintenanceMode = () => {
+    const newState = !isDeveloperModeActive;
+    // Aktualizujemy oba pola, aby zachować spójność w Firebase
+    set(ref(db, 'stats/config/isDeveloperModeActive'), newState);
+    set(ref(db, 'stats/config/maintenance'), newState).then(() => {
+        console.log(`Tryb konserwacji (Developer Mode): ${newState ? 'WŁĄCZONY' : 'WYŁĄCZONY'}`);
+    });
+};
+
+// Inicjalizacja UI
+updateMaintenanceUI();
