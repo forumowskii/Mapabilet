@@ -80,7 +80,7 @@ body.no-scroll {
     width: 100%;
     height: 100%;
     background: rgba(0,0,0,0.7);
-    z-index: 1150;
+    z-index: 20000;
     display: none;
     backdrop-filter: blur(5px);
 }
@@ -96,7 +96,7 @@ body.no-scroll {
     width: 300px;
     height: 100%;
     background: #5c71c6;
-    z-index: 2000;
+    z-index: 21000;
     transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
@@ -1139,4 +1139,40 @@ svg:active {
 
 .search-item:hover {
     background: var(--accent);
+}
+
+/* --- CAPS LOCK WARNING --- */
+.caps-lock-warning {
+    display: none;
+    color: var(--warning);
+    font-size: 11px;
+    font-weight: 700;
+    margin-top: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    align-items: center;
+    gap: 5px;
+}
+
+.caps-lock-warning.active {
+    display: flex;
+}
+
+.caps-lock-warning i {
+    font-size: 14px;
+}
+
+/* --- RAINBOW MODE --- */
+@keyframes rainbow-hue {
+    from { filter: hue-rotate(0deg); }
+    to { filter: hue-rotate(360deg); }
+}
+
+body.rainbow-active #svg-map, 
+body.rainbow-active #svg-heatmap {
+    animation: rainbow-hue 5s linear infinite !important;
+}
+
+body.rainbow-active .app-container {
+    animation: rainbow-hue 5s linear infinite;
 }

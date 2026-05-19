@@ -643,6 +643,7 @@ window.handleBusClick = () => {
 window.openSecretPanel = () => {
     window.closeAllModals();
     document.getElementById('secret-modal').classList.add('active');
+    document.body.classList.add('no-scroll');
     
     const statusText = document.getElementById('secret-status-text');
     if (!storedPassword) {
@@ -734,8 +735,18 @@ window.requestPasswordChange = () => {
 
 // BAJERY
 window.toggleRainbowMode = (e) => {
-    document.body.classList.toggle('rainbow-active');
-    alert("Tęczowy tryb mapy aktywowany! 🌈");
+    const isActive = document.body.classList.toggle('rainbow-active');
+    
+    // Znajdź przycisk w panelu admina i zaktualizuj jego tekst
+    const btn = document.querySelector('button[onclick="window.toggleRainbowMode()"]');
+    if (btn) {
+        btn.innerText = isActive ? "WYŁĄCZ" : "WŁĄCZ";
+        btn.style.background = isActive ? "var(--danger)" : "var(--accent)";
+    }
+
+    if (isActive) {
+        console.log("Tęczowy tryb mapy aktywowany! 🌈");
+    }
 };
 
 window.simulateMillions = () => {
@@ -849,13 +860,19 @@ window.toggleMenu = () => {
     if (isOpening) {
         document.body.classList.add('no-scroll');
     } else {
-        document.body.classList.remove('no-scroll');
+        const anyModalActive = !!document.querySelector('.modal.active');
+        if (!anyModalActive) {
+            document.body.classList.remove('no-scroll');
+        }
     }
 };
 window.closeMenu = () => {
     document.getElementById('side-menu').classList.remove('active');
     document.getElementById('menu-overlay').classList.remove('active');
-    document.body.classList.remove('no-scroll');
+    const anyModalActive = !!document.querySelector('.modal.active');
+    if (!anyModalActive) {
+        document.body.classList.remove('no-scroll');
+    }
 };
 
 window.setActiveMenuItem = (id) => {
@@ -868,8 +885,49 @@ window.closeAllModals = () => {
     document.querySelectorAll('.modal').forEach(m => m.classList.remove('active'));
     window.setActiveMenuItem('menu-home');
     window.closeMenu();
-    document.body.classList.remove('no-scroll');
 };
+
+// --- CAPS LOCK DETECTION ---
+const initCapsLockDetection = () => {
+    const passwordInputs = ['m-password-input', 'secret-password-input'];
+    
+    passwordInputs.forEach(id => {
+        const input = document.getElementById(id);
+        if (!input) return;
+
+        const updateWarning = (e) => {
+            const warningId = id === 'm-password-input' ? 'm-caps-warning' : 'secret-caps-warning';
+            const warning = document.getElementById(warningId);
+            if (!warning) return;
+
+            const isCaps = e.getModifierState && e.getModifierState('CapsLock');
+            if (isCaps) {
+                warning.classList.add('active');
+            } else {
+                warning.classList.remove('active');
+            }
+        };
+
+        input.addEventListener('keydown', updateWarning);
+         input.addEventListener('keyup', updateWarning);
+         input.addEventListener('mousedown', updateWarning);
+         
+         // Dodatkowo przy focusie, żeby od razu sprawdzić stan
+         input.addEventListener('focus', (e) => {
+             // Niektóre przeglądarki pozwalają sprawdzić stan przy focusie
+             if (e.getModifierState) {
+                updateWarning(e);
+             }
+         });
+    });
+};
+
+// Inicjalizacja po załadowaniu DOM
+document.addEventListener('DOMContentLoaded', () => {
+    initCapsLockDetection();
+});
+// Ponieważ app.js może być ładowany asynchronicznie, wywołajmy też od razu
+initCapsLockDetection();
 
 function updateProgressUI() {
     const p = Math.min((earnedSoFar / 150) * 100, 100);

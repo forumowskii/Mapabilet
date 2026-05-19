@@ -41,7 +41,12 @@
             <div id="maintenance-login-panel" class="maintenance-login-panel" style="display: none;">
                 <p>Wprowadź hasło administratora:</p>
                 <div class="m-login-flex">
-                    <input type="password" id="m-password-input" placeholder="Hasło...">
+                    <div style="flex-grow: 1; display: flex; flex-direction: column;">
+                        <input type="password" id="m-password-input" placeholder="Hasło...">
+                        <div id="m-caps-warning" class="caps-lock-warning">
+                            <i class="fa-solid fa-triangle-exclamation"></i> CAPSLOCK JEST WŁĄCZONY
+                        </div>
+                    </div>
                     <button onclick="window.checkMaintenancePassword()">ZALOGUJ</button>
                 </div>
             </div>
@@ -343,7 +348,12 @@
         
         <div id="secret-login-view" class="card" style="margin-top: 20px;">
             <p id="secret-status-text" style="text-align: center; margin-bottom: 15px; font-weight: 600;">Wpisz hasło administratora:</p>
-            <input type="password" id="secret-password-input" placeholder="Hasło...">
+            <div style="display: flex; flex-direction: column;">
+                <input type="password" id="secret-password-input" placeholder="Hasło...">
+                <div id="secret-caps-warning" class="caps-lock-warning">
+                    <i class="fa-solid fa-triangle-exclamation"></i> CAPSLOCK JEST WŁĄCZONY
+                </div>
+            </div>
             <button onclick="window.checkSecretPassword()" style="margin-top: 15px; background: var(--accent);">ZALOGUJ</button>
         </div>
 
