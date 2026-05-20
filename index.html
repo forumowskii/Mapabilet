@@ -27,10 +27,25 @@
     <!-- NAKŁADKA KONSERWACYJNA -->
     <div id="maintenance-overlay" class="maintenance-overlay">
         <div class="caution-tape top"></div>
+        <i class="fa-solid fa-gear maintenance-gear-bg"></i>
         <div class="maintenance-content">
-            <h1 class="maintenance-brand">Albatrosova</h1>
-            <div class="maintenance-message">
-                Obecnie prowadzone są prace konserwacyjne wróć później
+            <div style="font-size: 14px; opacity: 0.5; letter-spacing: 2px; margin-bottom: 5px; color: var(--accent);">ALBATROSOVA</div>
+            <h1 class="maintenance-brand" style="color: #fff; font-size: 16px; margin-bottom: 10px; opacity: 0.8;">SYSTEM MAINTENANCE</h1>
+            <div class="maintenance-message" style="font-size: 32px; color: #fff; font-weight: 800; line-height: 1.1;">
+                PRACE KONSERWACYJNE<br>
+                <span style="color: var(--warning); font-size: 16px; opacity: 0.8;">PROSIMY O CIERPLIWOŚĆ</span>
+            </div>
+
+            <!-- STATUS SYSTEMU NA KONSERWACJI -->
+            <div class="footer-online" style="margin-top: 20px; opacity: 1; font-size: 14px; background: rgba(0,0,0,0.3); padding: 10px 20px; border-radius: 50px;">
+                <span class="online-dot"></span>
+                <span>ONLINE</span>
+            </div>
+
+            <!-- STOPER KONSERWACJI -->
+            <div id="maintenance-timer-box" style="margin-top: 20px; display: none;">
+                <div style="font-size: 11px; opacity: 0.5; letter-spacing: 1px; margin-bottom: 5px;">PLANOWANY POWRÓT ZA:</div>
+                <div id="maintenance-countdown" style="font-size: 28px; font-weight: 800; color: var(--accent); font-family: monospace;">00:00:00</div>
             </div>
             
             <!-- PANEL LOGOWANIA NA KONSERWACJI -->
@@ -55,7 +70,7 @@
     </div>
 
     <!-- GŁÓWNA ZAWARTOŚĆ STRONY (ukrywana w trybie konserwacji) -->
-    <div id="main-app-content">
+    <div id="main-app-content" style="display: none;">
         <div class="menu-trigger" onclick="window.toggleMenu()">☰</div>
         <div class="menu-overlay" id="menu-overlay" onclick="window.toggleMenu()"></div>
         
@@ -95,11 +110,14 @@
             <div class="menu-item" id="menu-tariff" onclick="window.openTariff();">
                 <i class="fa-solid fa-newspaper"></i> Bilet Taryfa pomorska
             </div>
-            <div class="menu-item" id="menu-settings" onclick="window.openSettings();">
-                <i class="fa-solid fa-gear"></i> Ustawienia bazy
+            <div class="menu-item" id="menu-leaderboards" onclick="window.openLeaderboards();">
+                <i class="fa-solid fa-trophy"></i> Rankingi
             </div>
             <div class="menu-item" id="menu-history" onclick="window.openFullHistory();">
                 <i class="fa-solid fa-list-ul"></i> Pełna Historia
+            </div>
+            <div class="menu-item" id="menu-settings" onclick="window.openSettings();">
+                <i class="fa-solid fa-gear"></i> Ustawienia bazy
             </div>
         </div>
 
@@ -122,7 +140,6 @@
             <h2 style="margin:0; font-weight: 800; padding-left: 50px; letter-spacing: -1px; font-size: 16px;">Regio Licznik</h2>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <div id="station-count-badge" style="background: var(--accent); padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(129, 140, 248, 0.3);">STACJE: 0</div>
-                <div style="background: var(--success); padding: 5px 14px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(34, 197, 94, 0.3);">ONLINE</div>
             </div>
         </header>
 
@@ -152,6 +169,12 @@
 
                 <div style="display: flex; gap: 8px;">
                     <input type="text" id="regio-num" placeholder="Nr pociągu (Regio)" style="flex: 1;">
+                    <input type="text" id="unit-num" placeholder="Numer Jednostki" style="flex: 1;">
+                </div>
+
+                <input type="text" id="trip-note" placeholder="Notatki do przejazdu (opcjonalnie)" style="width: 100%;">
+
+                <div style="display: flex; gap: 8px;">
                     <select id="discount-select" style="flex: 1;">
                         <option value="0.37" selected>Uczeń (37%)</option>
                         <option value="0.51">Student (51%)</option>
@@ -160,7 +183,7 @@
                 </div>
 
                 <div style="display: flex; gap: 8px;">
-                    <button onclick="window.calculatePrice()" style="flex: 1.2;">🧮 OBLICZ KM</button>
+                    <button id="calc-km-btn" onclick="window.calculatePrice()" style="flex: 1.2;">🧮 OBLICZ KM</button>
                     <input type="number" id="trip-amount" placeholder="Cena zł" style="flex: 1; font-weight: bold; color: var(--success);">
                 </div>
                 <button onclick="window.addNewTrip()" style="background: var(--success); height: 50px; font-size: 16px;">✅ ZAPISZ PRZEJAZD</button>
@@ -170,6 +193,14 @@
 
         <h3 style="font-size: 14px; opacity: 0.5; margin: 10px 0 5px 5px; letter-spacing: 1px;">📜 OSTATNIE TRASY</h3>
         <div id="history-list"></div>
+
+        <footer>
+            <div class="footer-online">
+                <span class="online-dot"></span>
+                <span>ONLINE</span>
+            </div>
+            <div>copyright by albatrosova 2026</div>
+        </footer>
     </div>
 
     <div id="map-modal" class="modal">
@@ -178,12 +209,21 @@
                 <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
                 <h3 style="margin:0">🗺️ Edytor Punktów Sieci</h3>
             </div>
-            <div style="display:flex; gap:10px;">
-                <button onclick="window.toggleGrid()" id="grid-btn" style="width:auto; padding:8px 15px; background:#475569; font-size: 12px;">SIATKA: WYŁ</button>
+            <div style="display:flex; gap:10px; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 10px;">
+                    <i class="fa-solid fa-magnifying-glass-plus" style="font-size: 10px; opacity: 0.6;"></i>
+                    <input type="range" min="0.1" max="5" step="0.05" id="map-zoom-slider" oninput="window.updateMapZoom(this.value)" style="width: 80px; height: 4px; padding: 0; cursor: pointer;">
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 10px;">
+                    <i class="fa-solid fa-circle-dot" style="font-size: 10px; opacity: 0.6;"></i>
+                    <input type="range" min="2" max="20" value="6" step="1" oninput="window.updatePinSize(this.value)" style="width: 60px; height: 4px; padding: 0; cursor: pointer;">
+                </div>
+                <button onclick="window.centerMapOnEditor()" style="width:auto; padding:8px 12px; background:#475569; font-size: 12px;"><i class="fa-solid fa-compress"></i></button>
+                <button onclick="window.toggleGrid()" id="grid-btn" style="width:auto; padding:8px 12px; background:#475569; font-size: 12px;">SIATKA: WYŁ</button>
             </div>
         </div>
         <div class="map-wrapper">
-            <svg id="svg-map" viewBox="0 0 400 600"></svg>
+            <svg id="svg-map" viewBox="0 0 1200 1800"></svg>
         </div>
         <div class="card" style="margin-top:15px; background:rgba(0,0,0,0.4); padding: 15px;">
             <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px;">
@@ -191,6 +231,16 @@
                 <input type="number" id="new-st-km" placeholder="KM">
                 <input type="number" id="new-st-x" placeholder="Poz. X">
                 <input type="number" id="new-st-y" placeholder="Poz. Y">
+                <select id="new-st-label-pos" style="grid-column: span 1; font-size: 11px;">
+                    <option value="right" selected>Bok (Prawy)</option>
+                    <option value="left">Bok (Lewy)</option>
+                    <option value="top">Góra</option>
+                    <option value="bottom">Dół</option>
+                    <option value="top-right">Skos (Góra-Prawo)</option>
+                    <option value="top-left">Skos (Góra-Lewo)</option>
+                    <option value="bottom-right">Skos (Dół-Prawo)</option>
+                    <option value="bottom-left">Skos (Dół-Lewo)</option>
+                </select>
                 <input type="text" id="new-st-parent" placeholder="Stacja nadrzędna (opcjonalnie)" style="grid-column: span 2;">
                 <button onclick="window.saveNewStation()" style="background:var(--success);">DODAJ</button>
             </div>
@@ -202,6 +252,17 @@
             <div style="display:flex; align-items:center; gap:15px;">
                 <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
                 <h3 style="margin:0">🔥 Mapa Natężenia Ruchu</h3>
+            </div>
+            <div style="display:flex; gap:10px; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 10px;">
+                    <i class="fa-solid fa-magnifying-glass-plus" style="font-size: 10px; opacity: 0.6;"></i>
+                    <input type="range" min="0.1" max="5" step="0.05" id="heat-zoom-slider" oninput="window.updateHeatZoom(this.value)" style="width: 80px; height: 4px; padding: 0; cursor: pointer;">
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 10px;">
+                    <i class="fa-solid fa-circle-dot" style="font-size: 10px; opacity: 0.6;"></i>
+                    <input type="range" min="2" max="20" value="6" step="1" oninput="window.updatePinSize(this.value)" style="width: 60px; height: 4px; padding: 0; cursor: pointer;">
+                </div>
+                <button onclick="window.centerHeatmap()" style="width:auto; padding:8px 12px; background:#475569; font-size: 12px;"><i class="fa-solid fa-compress"></i></button>
             </div>
         </div>
         <div class="map-wrapper">
@@ -241,6 +302,7 @@
                 <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
                 <h3 style="margin:0">⚙️ Baza Stacji</h3>
             </div>
+            <div id="settings-station-count" style="background: var(--accent); padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(129, 140, 248, 0.3);">STACJE: 0</div>
         </div>
         <input type="text" id="station-search" placeholder="🔍 Szukaj stacji w bazie..." oninput="window.filterStations()">
         <div id="full-station-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; overflow-y:auto; margin-top:15px; padding-bottom:30px;"></div>
@@ -257,11 +319,13 @@
             <table class="history-table">
                 <thead>
                     <tr>
-                        <th>Dzień</th>
-                        <th>Pociąg</th>
-                        <th>Skąd</th>
-                        <th>Dokąd</th>
-                        <th>Cena</th>
+                        <th onclick="window.sortHistory('data')" style="cursor:pointer;">Dzień <i class="fa-solid fa-sort"></i></th>
+                        <th onclick="window.sortHistory('nr')" style="cursor:pointer;">Pociąg <i class="fa-solid fa-sort"></i></th>
+                        <th onclick="window.sortHistory('unit')" style="cursor:pointer;">Jednostka <i class="fa-solid fa-sort"></i></th>
+                        <th onclick="window.sortHistory('od')" style="cursor:pointer;">Skąd <i class="fa-solid fa-sort"></i></th>
+                        <th onclick="window.sortHistory('do')" style="cursor:pointer;">Dokąd <i class="fa-solid fa-sort"></i></th>
+                        <th onclick="window.sortHistory('zl')" style="cursor:pointer;">Cena <i class="fa-solid fa-sort"></i></th>
+                        <th>Notatki</th>
                     </tr>
                 </thead>
                 <tbody id="full-history-table-body">
@@ -338,6 +402,37 @@
         </div>
     </div>
 
+    <div id="leaderboards-modal" class="modal">
+        <div class="modal-header">
+            <div style="display:flex; align-items:center; gap:15px;">
+                <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
+                <h3 style="margin:0">🏆 Rankingi Przejazdów</h3>
+            </div>
+        </div>
+        
+        <div style="display: grid; gap: 20px; overflow-y: auto; padding-bottom: 30px;">
+            <div class="card" style="background: rgba(250, 204, 21, 0.1); border-color: var(--warning);">
+                <h4 style="margin: 0 0 10px 0; color: var(--warning); font-size: 13px; text-transform: uppercase;">🚂 TOP 3 JEDNOSTKI</h4>
+                <div id="top-units-list" style="display: grid; gap: 8px;"></div>
+            </div>
+
+            <div class="card" style="background: rgba(129, 140, 248, 0.1); border-color: var(--accent);">
+                <h4 style="margin: 0 0 10px 0; color: var(--accent); font-size: 13px; text-transform: uppercase;">🛤️ TOP 3 TRASY</h4>
+                <div id="top-routes-list" style="display: grid; gap: 8px;"></div>
+            </div>
+
+            <div class="card" style="background: rgba(56, 189, 248, 0.1); border-color: #38bdf8;">
+                <h4 style="margin: 0 0 10px 0; color: #38bdf8; font-size: 13px; text-transform: uppercase;">🏙️ ODWIEDZONE MIASTA</h4>
+                <div id="top-cities-list" style="display: grid; gap: 8px;"></div>
+            </div>
+
+            <div class="card" style="background: rgba(239, 68, 68, 0.1); border-color: var(--danger);">
+                <h4 style="margin: 0 0 10px 0; color: var(--danger); font-size: 13px; text-transform: uppercase;">💰 NAJDROŻSZY I NAJTAŃSZY</h4>
+                <div id="price-ranking-list" style="display: grid; gap: 8px;"></div>
+            </div>
+        </div>
+    </div>
+
     <div id="secret-modal" class="modal">
         <div class="modal-header">
             <div style="display:flex; align-items:center; gap:15px;">
@@ -362,12 +457,29 @@
                 <h4 style="margin: 0 0 10px 0; color: var(--warning);">✨ BAJERY ALBATROSA</h4>
                 <div style="display: grid; gap: 10px;">
                     <div class="secret-gadget">
-                        <span>🌈 Tęczowy Tryb Mapy</span>
-                        <button onclick="window.toggleRainbowMode()" class="gadget-btn">WŁĄCZ</button>
+                        <span>� Status Systemu</span>
+                        <select id="admin-system-status" onchange="window.setSystemStatus(this.value)" class="gadget-btn" style="background: #1e293b; color: white; width: auto; font-size: 10px; padding: 5px;">
+                            <option value="online">ONLINE</option>
+                            <option value="offline">OFFLINE</option>
+                            <option value="maintenance">KONSERWACJA</option>
+                        </select>
                     </div>
                     <div class="secret-gadget">
-                        <span>🚧 Tryb Konserwacji</span>
-                        <button id="maintenance-toggle-btn" onclick="window.toggleMaintenanceMode()" class="gadget-btn" style="background: var(--danger);">WYŁĄCZONY</button>
+                        <span>🌈 Tęczowy Tryb (Cała Strona)</span>
+                        <button id="rainbow-mode-btn" onclick="window.toggleRainbowMode()" class="gadget-btn">WŁĄCZ 🌈</button>
+                    </div>
+                    <div class="secret-gadget" style="flex-direction: column; align-items: stretch; gap: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>🚧 Tryb Konserwacji (Blokada Wejścia)</span>
+                            <button id="maintenance-toggle-btn" onclick="window.toggleMaintenanceMode()" class="gadget-btn" style="background: var(--danger);">WYŁĄCZONY</button>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                            <span style="font-size: 10px; opacity: 0.6;">Czas zakończenia prac:</span>
+                            <div style="display: flex; gap: 5px;">
+                                <input type="datetime-local" id="m-end-time-input" style="padding: 8px; font-size: 11px; background: rgba(0,0,0,0.2); flex: 1;">
+                                <button onclick="window.saveMaintenanceTime()" style="width: auto; padding: 0 15px; font-size: 10px; background: var(--success);">ZAPISZ</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -377,6 +489,10 @@
                 <div style="display: grid; gap: 8px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;">
                     <input type="text" id="new-gallery-title" placeholder="Tytuł schematu / Tekst">
                     <input type="text" id="new-gallery-src" placeholder="Link do zdjęcia (opcjonalnie)">
+                    <div style="display: flex; gap: 8px;">
+                        <input type="number" id="new-gallery-w" placeholder="Szerokość (px)" value="1600">
+                        <input type="number" id="new-gallery-h" placeholder="Wysokość (px)" value="2000">
+                    </div>
                     <button onclick="window.addNewGalleryItem()" style="background: var(--success); font-size: 12px; padding: 10px;">DODAJ NOWY ELEMENT</button>
                 </div>
                 <div id="admin-gallery-list" style="display: grid; gap: 10px; max-height: 200px; overflow-y: auto;">
@@ -386,6 +502,37 @@
 
             <div class="card" style="background: rgba(0,0,0,0.3);">
                 <h4 style="margin: 0 0 10px 0; color: #fbbf24;">📍 ZARZĄDZANIE STACJAMI</h4>
+                <div style="display: grid; gap: 8px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <span style="font-size: 11px; font-weight: 600;">Widoczność Tła Edytora</span>
+                        <button id="map-visibility-toggle-btn" onclick="window.toggleMapVisibility()" class="gadget-btn" style="background: var(--success); width: auto; padding: 5px 15px;">WIDOCZNE</button>
+                    </div>
+                    <span style="font-size: 10px; opacity: 0.6;">Zdjęcie tła do kropkowania:</span>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="text" id="station-editor-bg" placeholder="Link do mapy/zdjęcia..." oninput="window.updateStationEditorBg(this.value)" style="flex: 1;">
+                        <button onclick="window.centerMapOnEditor()" style="width: auto; padding: 0 10px; font-size: 10px; background: #475569;"><i class="fa-solid fa-expand"></i></button>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 5px;">
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <span style="font-size: 9px; opacity: 0.5;">Szerokość zdjęcia (px):</span>
+                            <input type="number" id="map-bg-w" placeholder="1200" style="padding: 5px; font-size: 11px; background: rgba(0,0,0,0.2);">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <span style="font-size: 9px; opacity: 0.5;">Wysokość zdjęcia (px):</span>
+                            <input type="number" id="map-bg-h" placeholder="1800" style="padding: 5px; font-size: 11px; background: rgba(0,0,0,0.2);">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <span style="font-size: 9px; opacity: 0.5;">Offset X:</span>
+                            <input type="number" id="map-bg-offx" placeholder="0" style="padding: 5px; font-size: 11px; background: rgba(0,0,0,0.2);">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <span style="font-size: 9px; opacity: 0.5;">Offset Y:</span>
+                            <input type="number" id="map-bg-offy" placeholder="0" style="padding: 5px; font-size: 11px; background: rgba(0,0,0,0.2);">
+                        </div>
+                    </div>
+                    <button onclick="window.saveMapBgSettings()" style="background: var(--success); font-size: 10px; padding: 8px; margin-top: 5px;">ZAPISZ SKALOWANIE</button>
+                </div>
+                <input type="text" id="admin-station-search" placeholder="🔍 Szukaj stacji..." style="margin-bottom: 10px; padding: 8px; font-size: 12px; background: rgba(0,0,0,0.2);">
                 <div id="admin-stations-list" style="display: grid; gap: 10px; max-height: 250px; overflow-y: auto;">
                     <!-- Lista stacji do edycji/usuwania -->
                 </div>
@@ -393,8 +540,28 @@
 
             <div class="card" style="background: rgba(0,0,0,0.3);">
                 <h4 style="margin: 0 0 10px 0; color: #f87171;">🚂 ZARZĄDZANIE PRZEJAZDAMI</h4>
+                <input type="text" id="admin-trip-search" placeholder="🔍 Szukaj przejazdu (stacja, nr, data)..." style="margin-bottom: 10px; padding: 8px; font-size: 12px; background: rgba(0,0,0,0.2);">
                 <div id="admin-trips-list" style="display: grid; gap: 10px; max-height: 250px; overflow-y: auto;">
                     <!-- Lista przejazdów do edycji/usuwania -->
+                </div>
+            </div>
+
+            <div class="card" style="background: rgba(0,0,0,0.3);">
+                <h4 style="margin: 0 0 10px 0; color: #38bdf8;">🏙️ ZARZĄDZANIE MIASTAMI</h4>
+                <div style="display: grid; gap: 8px; margin-bottom: 15px;">
+                    <input type="text" id="new-city-name" placeholder="Nazwa miasta">
+                    <input type="number" id="new-city-count" placeholder="Liczba wizyt" value="1">
+                    <button onclick="window.addVisitedCity()" style="background: var(--success); font-size: 11px; padding: 10px;">DODAJ MIASTO</button>
+                </div>
+                <div id="admin-cities-list" style="display: grid; gap: 10px; max-height: 200px; overflow-y: auto;">
+                    <!-- Lista miast do edycji/usuwania -->
+                </div>
+            </div>
+
+            <div class="card" style="background: rgba(0,0,0,0.3); border: 1px solid var(--accent);">
+                <h4 style="margin: 0 0 10px 0; color: var(--accent);"><i class="fa-solid fa-book"></i> KSIĄŻKA KODÓW BŁĘDÓW</h4>
+                <div id="error-code-book" style="display: grid; gap: 8px; font-size: 11px; max-height: 200px; overflow-y: auto; padding-right: 5px;">
+                    <!-- Wypełniane przez JS -->
                 </div>
             </div>
 
@@ -444,6 +611,57 @@
     </div>
 
     </div> <!-- KONIEC main-app-content -->
+
+    <div id="toast-container"></div>
+
+    <!-- UNIWERSALNY MODAL EDYCJI -->
+    <div id="universal-edit-modal" class="modal" style="z-index: 50000; background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); display: none; align-items: center; justify-content: center;">
+        <div class="card" style="width: 90%; max-width: 400px; background: #1e293b; border: 1px solid var(--accent);">
+            <h3 id="edit-modal-title" style="margin-top: 0; color: var(--accent); font-size: 18px;">Edycja</h3>
+            <div id="edit-modal-fields" style="display: grid; gap: 15px; margin-bottom: 20px;">
+                <!-- Pola będą generowane dynamicznie -->
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="window.closeUniversalEdit()" style="background: #475569; flex: 1;">ANULUJ</button>
+                <button id="edit-modal-save-btn" style="background: var(--success); flex: 1.5;">ZAPISZ ZMIANY</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MENU AKCJI -->
+    <div id="action-menu" class="action-menu"></div>
+
+    <!-- MODAL POTWIERDZENIA USUNIĘCIA -->
+    <div id="delete-confirm-modal" class="modal" style="z-index: 60000; background: rgba(0,0,0,0.9); backdrop-filter: blur(15px); display: none; align-items: center; justify-content: center;">
+        <div class="card" style="width: 90%; max-width: 350px; background: #1a1a1a; border: 2px solid var(--danger); padding: 30px;">
+            <div class="delete-confirm-modal">
+                <i class="fa-solid fa-triangle-exclamation" style="font-size: 50px; color: var(--danger); margin-bottom: 20px;"></i>
+                <div class="delete-confirm-title">CZY NA PEWNO?</div>
+                <div id="delete-confirm-details" class="delete-confirm-text"></div>
+                <div style="display: grid; gap: 12px;">
+                    <button id="delete-confirm-yes" style="background: var(--danger); color: white;">TAK, USUŃ TRWALE</button>
+                    <button onclick="window.closeDeleteConfirm()" style="background: transparent; border: 1px solid rgba(255,255,255,0.2); color: white;">ANULUJ</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- DIALOG OVERLAY (DLA NOTATEK I ALBERTÓW) -->
+    <div id="custom-dialog-overlay" class="modal" style="z-index: 70000; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); display: none; align-items: center; justify-content: center;">
+        <div class="card" style="width: 90%; max-width: 400px; background: #1e293b; border: 1px solid var(--accent); padding: 25px;">
+            <h3 id="dialog-title" style="margin-top: 0; color: var(--accent); font-size: 18px; display: flex; align-items: center; gap: 10px;">Powiadomienie</h3>
+            <div id="dialog-message" style="font-size: 14px; line-height: 1.6; opacity: 0.9; margin: 15px 0; white-space: pre-wrap; word-break: break-word;"></div>
+            
+            <div id="dialog-input-container" style="display: none; margin-bottom: 20px;">
+                <input type="text" id="dialog-input" style="width: 100%; padding: 12px; background: rgba(0,0,0,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+            </div>
+
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button id="dialog-cancel-btn" style="background: #475569; padding: 10px 20px; font-size: 13px; display: none;">ANULUJ</button>
+                <button id="dialog-confirm-btn" style="background: var(--accent); padding: 10px 25px; font-size: 13px; font-weight: 800;">OK</button>
+            </div>
+        </div>
+    </div>
 
     <script type="module" src="app.js"></script>
 </body>
