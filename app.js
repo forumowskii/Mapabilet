@@ -1,9 +1,28 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { getDatabase, ref, onValue, set, push, remove, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 import PhotoSwipeLightbox from 'https://unpkg.com/photoswipe@5.4.3/dist/photoswipe-lightbox.esm.js';
 
 // --- KONFIGURACJA ---
 const startTime = performance.now();
+
+// Helper do wyciągania stacji nadrzędnych (wsparcie dla wielu oddzielonych przecinkiem)
+// Zwraca listę kluczy (identyfikatorów) stacji nadrzędnych
+const getParents = (s) => {
+    if (!s || !s.parent) return [];
+    let parentNames = [];
+    if (typeof s.parent === 'string') {
+        parentNames = s.parent.split(',').map(p => p.trim());
+    }
+    
+    // Szukamy kluczy stacji pasujących do tych nazw
+    const parentKeys = [];
+    parentNames.forEach(pName => {
+        const normP = normalizeStationName(pName);
+        const foundKey = Object.keys(stations).find(k => k === pName.toLowerCase() || normalizeStationName(k) === normP);
+        if (foundKey) parentKeys.push(foundKey);
+    });
+    return parentKeys;
+};
 
 // Helper do normalizacji nazw stacji (usuwanie polskich znaków, małe litery, trim)
 const normalizeStationName = (name) => {
@@ -14,6 +33,143 @@ const normalizeStationName = (name) => {
         .replace(/ł/g, "l")
         .replace(/[^a-z0-9 ]/g, "")
         .trim();
+};
+
+// --- TAGS INPUT SYSTEM ---
+window.initTagsInput = (containerId, initialValue = "") => {
+    const container = document.getElementById(containerId);
+    if (!container) return null;
+
+    container.style.position = 'relative'; // Dla pozycjonowania sugestii
+
+    let tags = initialValue ? initialValue.split(',').map(t => t.trim()).filter(t => t) : [];
+    let selectedSuggestionIdx = -1;
+    
+    // Tworzymy kontener na sugestie
+    const suggestionsBox = document.createElement('div');
+    suggestionsBox.className = 'tags-suggestions';
+    container.appendChild(suggestionsBox);
+    
+    const renderTags = () => {
+        const input = container.querySelector('input');
+        const existingTags = container.querySelectorAll('.tag-chip');
+        existingTags.forEach(t => t.remove());
+
+        tags.forEach((tag, idx) => {
+            const chip = document.createElement('div');
+            chip.className = 'tag-chip';
+            chip.innerHTML = `
+                <span>${tag.toUpperCase()}</span>
+                <i class="fa-solid fa-xmark remove-tag" onclick="event.stopPropagation(); window.removeTag('${containerId}', ${idx})"></i>
+            `;
+            container.insertBefore(chip, input);
+        });
+    };
+
+    const updateSuggestions = (val) => {
+        const q = val.toLowerCase().trim();
+        suggestionsBox.innerHTML = "";
+        selectedSuggestionIdx = -1;
+
+        if (!q) {
+            suggestionsBox.classList.remove('active');
+            return;
+        }
+
+        const matches = Object.keys(stations)
+            .filter(name => name.toLowerCase().includes(q) && !tags.includes(name.toLowerCase()))
+            .sort()
+            .slice(0, 10);
+
+        if (matches.length > 0) {
+            matches.forEach((name, idx) => {
+                const item = document.createElement('div');
+                item.className = 'suggestion-item';
+                item.innerText = name.toUpperCase();
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    addTag(name);
+                };
+                suggestionsBox.appendChild(item);
+            });
+            suggestionsBox.classList.add('active');
+        } else {
+            suggestionsBox.classList.remove('active');
+        }
+    };
+
+    const addTag = (val) => {
+        const tag = val.toLowerCase().trim();
+        if (tag && !tags.includes(tag)) {
+            tags.push(tag);
+            input.value = "";
+            renderTags();
+            suggestionsBox.classList.remove('active');
+            container.dispatchEvent(new CustomEvent('change', { detail: tags }));
+        }
+    };
+
+    window.removeTag = (cId, idx) => {
+        if (cId !== containerId) return;
+        tags.splice(idx, 1);
+        renderTags();
+        container.dispatchEvent(new CustomEvent('change', { detail: tags }));
+    };
+
+    const input = container.querySelector('input');
+    
+    input.oninput = (e) => {
+        updateSuggestions(e.target.value);
+    };
+
+    input.onkeydown = (e) => {
+        const items = suggestionsBox.querySelectorAll('.suggestion-item');
+        
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (selectedSuggestionIdx >= 0 && items[selectedSuggestionIdx]) {
+                addTag(items[selectedSuggestionIdx].innerText);
+            } else {
+                addTag(input.value);
+            }
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selectedSuggestionIdx = Math.min(selectedSuggestionIdx + 1, items.length - 1);
+            updateSelectedSuggestion(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selectedSuggestionIdx = Math.max(selectedSuggestionIdx - 1, -1);
+            updateSelectedSuggestion(items);
+        } else if (e.key === 'Backspace' && !input.value && tags.length > 0) {
+            tags.pop();
+            renderTags();
+            container.dispatchEvent(new CustomEvent('change', { detail: tags }));
+        } else if (e.key === 'Escape') {
+            suggestionsBox.classList.remove('active');
+        }
+    };
+
+    const updateSelectedSuggestion = (items) => {
+        items.forEach((item, idx) => {
+            item.classList.toggle('selected', idx === selectedSuggestionIdx);
+            if (idx === selectedSuggestionIdx) item.scrollIntoView({ block: 'nearest' });
+        });
+    };
+
+    // Zamknij sugestie przy kliknięciu poza
+    document.addEventListener('click', (e) => {
+        if (!container.contains(e.target)) {
+            suggestionsBox.classList.remove('active');
+        }
+    });
+
+    container.onclick = () => input.focus();
+    renderTags();
+
+    return {
+        getTags: () => tags,
+        setTags: (newTags) => { tags = newTags; renderTags(); }
+    };
 };
 
 // --- LOGOWANIE DO TAJNEJ KONSOLI ---
@@ -46,7 +202,8 @@ console.log = (...args) => {
 console.error = (...args) => {
     // Ukrywamy prawdziwy błąd przed zwykłym użytkownikiem w konsoli przeglądarki
     const errorCode = "36"; // Domyślny kod
-    originalError(`( KOD BŁĘDU ${errorCode} skontaktuj sie z administratorem )`);
+    // originalError(`( KOD BŁĘDU ${errorCode} skontaktuj sie z administratorem )`);
+    originalError(...args); // Pokazujemy prawdziwy błąd podczas debugowania
     
     // Ale w tajnej konsoli admina pokazujemy wszystko
     const consoleElem = secretConsole();
@@ -74,12 +231,14 @@ const schematyRef = ref(db, 'stats/schematy');
 const ticketRef = ref(db, 'stats/bilet_miesieczny');
 const configRef = ref(db, 'stats/config');
 const visitedCitiesRef = ref(db, 'stats/visited_cities');
+const connectionsRef = ref(db, 'stats/polaczenia');
 
 let earnedSoFar = 0;
 let stations = {};
 let tripsData = [];
 let galleryData = [];
 let visitedCitiesData = {};
+let connectionsData = {};
 let historySortConfig = { key: 'data', direction: 'desc' };
 
 window.sortHistory = (key) => {
@@ -96,6 +255,8 @@ let busClicks = 0;
 let isAdminUnlocked = false;
 let storedPassword = null;
 let isDeveloperModeActive = false;
+let isDrawMode = false;
+let drawPoints = [];
 let maintenanceEndTime = null;
 let maintenanceInterval = null;
 let stationEditorBg = null;
@@ -103,11 +264,219 @@ let tempMarker = null;
 let isMapVisible = true;
 let showEditorBg = true;
 let globalPinSize = 6;
+let globalPinColor = "#ffffff";
+let globalLineWidth = 4;
+let globalHeatWidth = 1.5;
+let globalTextRotation = 0;
 let isCalcDisabled = false;
 let calcDisabledMsg = "Funkcja tymczasowo niedostępna.";
 let mapBgSettings = { w: 1200, h: 1800, offX: 0, offY: 0 };
 let loadTimeValue = 0;
 let systemStatus = "online";
+let draggedLabel = null;
+let isLabelEditMode = false;
+let selectedLabelForRotation = null;
+let isParentSelectionMode = false;
+let parentSelectionSource = null;
+let newStationParentHandler = null;
+
+window.toggleLabelEditMode = () => {
+    isLabelEditMode = !isLabelEditMode;
+    
+    // Aktualizacja przycisku w edytorze (prawy panel)
+    const btnEditor = document.getElementById('toggle-label-edit-btn');
+    if (btnEditor) {
+        btnEditor.innerHTML = isLabelEditMode ? `<i class="fa-solid fa-xmark"></i> TRYB EDYCJI: WŁ` : `<i class="fa-solid fa-arrows-up-down-left-right"></i> TRYB EDYCJI: WYŁ`;
+        btnEditor.style.background = isLabelEditMode ? 'var(--danger)' : '#334155';
+    }
+
+    // Aktualizacja pływającego przycisku
+    const btnFloating = document.getElementById('floating-label-edit-btn');
+    if (btnFloating) {
+        btnFloating.style.background = isLabelEditMode ? 'var(--danger)' : 'rgba(30, 41, 59, 0.7)';
+        btnFloating.style.boxShadow = isLabelEditMode ? '0 0 20px rgba(239, 68, 68, 0.5)' : '0 8px 25px rgba(0,0,0,0.5)';
+        btnFloating.querySelector('i').className = isLabelEditMode ? 'fa-solid fa-xmark' : 'fa-solid fa-arrows-up-down-left-right';
+        btnFloating.querySelector('i').style.color = 'white';
+    }
+
+    // Pasek obrotu
+    const knobContainer = document.getElementById('interactive-editor-gui');
+    if (knobContainer) {
+        knobContainer.classList.toggle('active', isLabelEditMode);
+        if (!isLabelEditMode) {
+            selectedLabelForRotation = null;
+            document.getElementById('knob-label-name').innerText = "Wybierz napis";
+        }
+    }
+
+    renderBase();
+    window.showToast(isLabelEditMode ? "Tryb edycji nazw aktywny" : "Tryb edycji nazw wyłączony", "info");
+};
+
+// --- OBSŁUGA POKRĘTEŁ EDYCYJNYCH ---
+function initEditorKnobs() {
+    const rotDial = document.getElementById('knob-rotation-dial');
+    const sizeDial = document.getElementById('knob-size-dial');
+    const rotDisplay = document.getElementById('knob-rotation-display');
+    const sizeInput = document.getElementById('knob-size-input');
+    
+    let isDraggingRot = false;
+    let isDraggingSize = false;
+    let lastAngleRot = 0;
+    let lastAngleSize = 0;
+    let currentRotation = 0;
+    let currentFontSize = 14;
+
+    const getAngle = (x, y, dial) => {
+        const rect = dial.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        return Math.atan2(y - centerY, x - centerX) * (180 / Math.PI);
+    };
+
+    const handleStartRot = (e) => {
+        if (!selectedLabelForRotation) return;
+        isDraggingRot = true;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        lastAngleRot = getAngle(clientX, clientY, rotDial);
+        rotDial.style.transition = 'none';
+        e.preventDefault();
+    };
+
+    const handleStartSize = (e) => {
+        if (!selectedLabelForRotation) return;
+        isDraggingSize = true;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        lastAngleSize = getAngle(clientX, clientY, sizeDial);
+        sizeDial.style.transition = 'none';
+        e.preventDefault();
+    };
+
+    const handleMove = (e) => {
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        if (isDraggingRot && selectedLabelForRotation) {
+            const currentAngle = getAngle(clientX, clientY, rotDial);
+            let delta = currentAngle - lastAngleRot;
+            
+            // Obsługa przeskoku 180/-180
+            if (delta > 180) delta -= 360;
+            if (delta < -180) delta += 360;
+            
+            currentRotation += delta;
+            lastAngleRot = currentAngle;
+            
+            updateRotationLive(Math.round(currentRotation));
+        }
+
+        if (isDraggingSize && selectedLabelForRotation) {
+            const currentAngle = getAngle(clientX, clientY, sizeDial);
+            let delta = currentAngle - lastAngleSize;
+            
+            if (delta > 180) delta -= 360;
+            if (delta < -180) delta += 360;
+
+            // Czułość rozmiaru: 10 stopni obrotu = 1px rozmiaru
+            let newSize = currentFontSize + delta / 10;
+            newSize = Math.max(8, Math.min(60, newSize));
+            
+            const sizeDiff = newSize - currentFontSize;
+            currentFontSize = newSize;
+            lastAngleSize = currentAngle;
+
+            // Wizualny obrót pokrętła rozmiaru (kumulatywny)
+            const currentDialRotation = (parseFloat(sizeDial.style.transform.replace('rotate(', '').replace('deg)', '')) || 0) + delta;
+            updateSizeLive(Math.round(currentFontSize), currentDialRotation);
+        }
+    };
+
+    const handleEnd = () => {
+        if (isDraggingRot && selectedLabelForRotation) {
+            const name = selectedLabelForRotation.name;
+            update(ref(db, `stats/stacje_siec/${name}`), { rotation: Math.round(currentRotation) });
+        }
+        if (isDraggingSize && selectedLabelForRotation) {
+            const name = selectedLabelForRotation.name;
+            update(ref(db, `stats/stacje_siec/${name}`), { fontSize: Math.round(currentFontSize) });
+        }
+        
+        isDraggingRot = false;
+        isDraggingSize = false;
+        rotDial.style.transition = 'transform 0.1s linear';
+        sizeDial.style.transition = 'transform 0.1s linear';
+    };
+
+    const updateRotationLive = (deg) => {
+        rotDial.style.transform = `rotate(${deg}deg)`;
+        rotDisplay.innerText = `${deg}°`;
+        if (selectedLabelForRotation && selectedLabelForRotation.element) {
+            const s = selectedLabelForRotation.data;
+            const x = s.x + (selectedLabelForRotation.finalDx || 0);
+            const y = s.y + (selectedLabelForRotation.finalDy || 0);
+            selectedLabelForRotation.element.setAttribute("transform", `rotate(${deg} ${x} ${y})`);
+        }
+    };
+
+    const updateSizeLive = (size, angle) => {
+        sizeDial.style.transform = `rotate(${angle}deg)`;
+        sizeInput.value = size;
+        if (selectedLabelForRotation && selectedLabelForRotation.element) {
+            selectedLabelForRotation.element.setAttribute("font-size", `${size}px`);
+        }
+    };
+
+    // Ręczna zmiana rozmiaru
+    sizeInput.addEventListener('input', (e) => {
+        if (!selectedLabelForRotation) return;
+        let size = parseInt(e.target.value) || 14;
+        size = Math.max(8, Math.min(60, size));
+        currentFontSize = size;
+        // Resetujemy wizualny kąt pokrętła przy ręcznym wpisie dla spójności
+        const angle = (size - 20) * 12;
+        updateSizeLive(size, angle);
+        
+        clearTimeout(sizeInput._timer);
+        sizeInput._timer = setTimeout(() => {
+            const name = selectedLabelForRotation.name;
+            update(ref(db, `stats/stacje_siec/${name}`), { fontSize: currentFontSize });
+        }, 500);
+    });
+
+    rotDial.addEventListener('mousedown', handleStartRot);
+    sizeDial.addEventListener('mousedown', handleStartSize);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+
+    rotDial.addEventListener('touchstart', handleStartRot, { passive: false });
+    sizeDial.addEventListener('touchstart', handleStartSize, { passive: false });
+    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('touchend', handleEnd);
+
+    window.selectLabelForRotation = (name, element, data, finalDx, finalDy) => {
+        selectedLabelForRotation = { name, element, data, finalDx, finalDy };
+        
+        currentRotation = data.rotation || 0;
+        rotDial.style.transform = `rotate(${currentRotation}deg)`;
+        rotDisplay.innerText = `${currentRotation}°`;
+
+        currentFontSize = data.fontSize || 14;
+        const sizeAngle = (currentFontSize - 20) * 12;
+        sizeDial.style.transform = `rotate(${sizeAngle}deg)`;
+        sizeInput.value = currentFontSize;
+
+        document.getElementById('knob-label-name').innerText = name.toUpperCase();
+        document.querySelectorAll('text').forEach(t => t.style.filter = "none");
+        element.style.filter = "drop-shadow(0 0 5px var(--accent))";
+    };
+}
+
+setTimeout(initEditorKnobs, 1000);
+setTimeout(() => {
+    newStationParentHandler = window.initTagsInput('new-st-parent-tags');
+}, 1000);
 
 window.updatePinSize = (val) => {
     globalPinSize = parseFloat(val);
@@ -116,36 +485,54 @@ window.updatePinSize = (val) => {
     renderHeat();
 };
 
+window.updateGlobalPinColor = (val) => {
+    globalPinColor = val;
+    set(ref(db, 'stats/config/globalPinColor'), globalPinColor);
+    renderBase();
+    renderHeat();
+};
+
+window.updateGlobalLineWidth = (val) => {
+    globalLineWidth = parseFloat(val);
+    set(ref(db, 'stats/config/globalLineWidth'), globalLineWidth);
+    renderBase();
+    renderHeat();
+};
+
+window.updateGlobalHeatWidth = (val) => {
+    globalHeatWidth = parseFloat(val);
+    set(ref(db, 'stats/config/globalHeatWidth'), globalHeatWidth);
+    renderHeat();
+};
+
+window.updateGlobalTextRotation = (val) => {
+    globalTextRotation = parseInt(val);
+    set(ref(db, 'stats/config/globalTextRotation'), globalTextRotation);
+    renderBase();
+    renderHeat();
+};
+
 window.centerHeatmap = () => {
     const svg = document.getElementById('svg-heatmap');
     if (!svg) return;
     const parent = svg.parentNode;
-    const w = parent.clientWidth || 800;
-    const h = parent.clientHeight || 600;
+    const w = parent.clientWidth || window.innerWidth;
+    const h = parent.clientHeight || window.innerHeight;
     
-    const bgW = mapBgSettings.w || 1200;
-    const bgH = mapBgSettings.h || 1800;
-    const offX = mapBgSettings.offX || 0;
-    const offY = mapBgSettings.offY || 0;
+    // Nowe wymiary 1200x1800
+    const bgW = 1200;
+    const bgH = 1800;
 
-    // Oblicz skalę tak, aby obraz zmieścił się w widoku
-    const scale = Math.min(w / bgW, h / bgH) * 1.0;
+    // Oblicz skalę tak, aby obraz wypełnił widok (lepiej niż Math.min dla "ciapatych" map)
+    const scale = Math.max(w / bgW, h / bgH) * 0.9;
     heatState.scale = scale;
 
-    // Aktualizuj suwak
-    const slider = document.getElementById('heat-zoom-slider');
-    if (slider) {
-        slider.value = scale;
-        slider.min = Math.min(0.05, scale / 5);
-        slider.max = Math.max(5, scale * 5);
-    }
-
     // Wyśrodkuj na ŚRODEK obrazu
-    heatState.x = w/2 - (offX + bgW/2) * scale;
-    heatState.y = h/2 - (offY + bgH/2) * scale;
+    heatState.x = (w - bgW * scale) / 2;
+    heatState.y = (h - bgH * scale) / 2;
     
     renderHeat();
-    window.showToast("Heatmapa wycentrowana na środek", "success");
+    window.showToast("Heatmapa wycentrowana i wyostrzona", "success");
 };
 
 window.updateStationEditorBg = (url) => {
@@ -269,7 +656,25 @@ function startMaintenanceCountdown() {
 
 // Stany Zoomu (Domyślnie wyśrodkowane na system komunikacyjny)
 let mapState = { x: 0, y: 0, scale: 0.33 }; // Dopasowane do nowej skali 1200x1800
-let heatState = { x: 0, y: 0, scale: 0.33 };
+let heatState = { x: 0, y: 0, scale: 0.7 };
+
+// Init renderów
+const renderBase = () => {
+    try {
+        renderMapElements('svg-map', mapState, 'base');
+    } catch (e) {
+        console.error("Błąd renderBase:", e);
+    }
+};
+
+const renderHeat = () => {
+    try {
+        renderMapElements('svg-heatmap', heatState, 'heat');
+        updateHotRoutesUI();
+    } catch (e) {
+        console.error("Błąd renderHeat:", e);
+    }
+};
 
 // Taryfa 2026
 const taryfa = [
@@ -297,6 +702,11 @@ window.openUniversalEdit = (title, fields, onSave) => {
         wrap.style.flexDirection = "column";
         wrap.style.gap = "5px";
         
+        // Niektóre pola mogą być na całą szerokość (np. nazwa)
+        if (field.id === 'name' || field.id === 'labelPos' || field.type === 'textarea') {
+            wrap.style.gridColumn = "span 2";
+        }
+        
         const label = document.createElement('label');
         label.innerText = field.label;
         label.style.fontSize = "12px";
@@ -312,6 +722,22 @@ window.openUniversalEdit = (title, fields, onSave) => {
                 if (opt.value === field.value) o.selected = true;
                 input.appendChild(o);
             });
+        } else if (field.type === 'tags') {
+            const tagContainer = document.createElement('div');
+            tagContainer.className = 'tags-input-container';
+            tagContainer.id = `tags-input-${field.id}`;
+            tagContainer.innerHTML = `<input type="text" placeholder="${field.placeholder || 'Dodaj stację...'}">`;
+            
+            wrap.appendChild(label);
+            wrap.appendChild(tagContainer);
+            fieldsContainer.appendChild(wrap);
+            
+            const handler = window.initTagsInput(tagContainer.id, field.value);
+            inputs[field.id] = { 
+                get value() { return handler.getTags().join(', '); },
+                set value(v) { handler.setTags(v.split(',').map(t => t.trim()).filter(t => t)); }
+            };
+            return; // Skip standard append
         } else {
             input = document.createElement(field.type === 'textarea' ? 'textarea' : 'input');
             input.type = field.type || 'text';
@@ -523,6 +949,34 @@ onValue(configRef, (s) => {
             });
         }
 
+        if (config.globalPinColor !== undefined) {
+            globalPinColor = config.globalPinColor;
+            document.querySelectorAll('input[type="color"][oninput*="updateGlobalPinColor"]').forEach(input => {
+                input.value = globalPinColor;
+            });
+        }
+        
+        if (config.globalLineWidth !== undefined) {
+            globalLineWidth = config.globalLineWidth;
+            document.querySelectorAll('input[type="range"][oninput*="updateGlobalLineWidth"]').forEach(input => {
+                input.value = globalLineWidth;
+            });
+        }
+
+        if (config.globalHeatWidth !== undefined) {
+            globalHeatWidth = config.globalHeatWidth;
+            document.querySelectorAll('input[type="range"][oninput*="updateGlobalHeatWidth"]').forEach(input => {
+                input.value = globalHeatWidth;
+            });
+        }
+
+        if (config.globalTextRotation !== undefined) {
+            globalTextRotation = config.globalTextRotation;
+            document.querySelectorAll('input[type="range"][oninput*="updateGlobalTextRotation"]').forEach(input => {
+                input.value = globalTextRotation;
+            });
+        }
+
         // Aktualizuj input w adminie jeśli istnieje
         const bgInput = document.getElementById('station-editor-bg');
         if (bgInput) bgInput.value = stationEditorBg || "";
@@ -534,8 +988,11 @@ onValue(configRef, (s) => {
         updateSystemStatusUI();
         renderBase(); // Odśwież mapę z nowym tłem jeśli trzeba
         window.addConsoleLog("Konfiguracja Firebase załadowana", "success");
-        inputFrom.addEventListener('input', renderMainHistoryList);
-        inputTo.addEventListener('input', renderMainHistoryList);
+        
+        const inputFrom = document.getElementById('route-from');
+        const inputTo = document.getElementById('route-to');
+        if (inputFrom) inputFrom.addEventListener('input', renderMainHistoryList);
+        if (inputTo) inputTo.addEventListener('input', renderMainHistoryList);
     }
 });
 
@@ -686,6 +1143,276 @@ onValue(stationsRef, (s) => {
     }
 });
 
+onValue(connectionsRef, (s) => {
+    connectionsData = s.val() || {};
+    renderBase();
+    renderHeat();
+    renderAdminConnections();
+});
+
+let isConnectionMode = false;
+let connectionStartStation = null;
+
+window.toggleConnectionMode = () => {
+    isConnectionMode = !isConnectionMode;
+    connectionStartStation = null;
+    const btn = document.getElementById('toggle-connection-mode-btn');
+    if (btn) {
+        btn.innerText = isConnectionMode ? "ŁĄCZENIE: WŁ" : "ŁĄCZENIE: WYŁ";
+        btn.style.background = isConnectionMode ? "var(--success)" : "#475569";
+    }
+    window.showToast(isConnectionMode ? "Tryb łączenia aktywny - klikaj dwie stacje" : "Tryb łączenia wyłączony", "info");
+    renderBase();
+};
+
+window.clearAllConnectionsFromStation = () => {
+    window.showToast("Wybierz stację na mapie, aby usunąć WSZYSTKIE jej połączenia", "warning");
+    isConnectionMode = false;
+    isCurveEditMode = false;
+    isParentSelectionMode = false;
+    
+    // Używamy jednorazowego eventu na SVG
+    const svg = document.getElementById('svg-map');
+    const onStationClick = (e) => {
+        const target = e.target;
+        if (target.tagName === 'circle' && target.getAttribute('fill') !== 'transparent') {
+            // Znaleźliśmy stację
+            // Musimy znaleźć klucz stacji na podstawie współrzędnych lub sprawdzić wszystkie stacje
+            const cx = parseFloat(target.getAttribute('cx'));
+            const cy = parseFloat(target.getAttribute('cy'));
+            
+            const stationKey = Object.keys(stations).find(k => stations[k].x === cx && stations[k].y === cy);
+            
+            if (stationKey) {
+                window.openDeleteConfirm(`Czy na pewno chcesz usunąć WSZYSTKIE połączenia stacji ${stationKey.toUpperCase()}?`, () => {
+                    // 1. Czyścimy parent w tej stacji
+                    update(ref(db, `stats/stacje_siec/${stationKey}`), { parent: null });
+                    
+                    // 2. Czyścimy parenty w innych stacjach, które wskazują na tę stację
+                    Object.keys(stations).forEach(sKey => {
+                        const parents = getParents(stations[sKey]);
+                        if (parents.includes(stationKey.toLowerCase())) {
+                            const newParents = parents.filter(p => p !== stationKey.toLowerCase()).join(', ');
+                            update(ref(db, `stats/stacje_siec/${sKey}`), { parent: newParents || null });
+                        }
+                    });
+                    
+                    // 3. Czyścimy polaczeniaData
+                    Object.keys(connectionsData).forEach(id => {
+                        if (id.includes(stationKey.toLowerCase())) {
+                            remove(ref(db, `stats/polaczenia/${id}`));
+                        }
+                    });
+                    
+                    window.showToast(`Połączenia stacji ${stationKey.toUpperCase()} zostały usunięte`, "success");
+                    renderBase();
+                });
+            }
+            svg.removeEventListener('click', onStationClick, true);
+        }
+    };
+    svg.addEventListener('click', onStationClick, true);
+};
+
+window.toggleEditorMenu = () => {
+    const menu = document.getElementById('editor-side-menu');
+    if (menu) {
+        menu.classList.toggle('active');
+        // Jeśli otwieramy menu edytora, upewnijmy się że główne menu jest zamknięte
+        if (menu.classList.contains('active')) {
+            document.getElementById('side-menu').classList.remove('active');
+            document.getElementById('menu-overlay').classList.remove('active');
+        }
+    }
+};
+
+let isCurveEditMode = false;
+let activeCurveId = null;
+
+window.toggleCurveEditMode = () => {
+    isCurveEditMode = !isCurveEditMode;
+    isConnectionMode = false; // Wyłączamy zwykłe łączenie
+    const btn = document.getElementById('toggle-curve-edit-btn');
+    const connBtn = document.getElementById('toggle-connection-mode-btn');
+    if (btn) {
+        btn.innerText = isCurveEditMode ? "EDYCJA KRZYWYCH: WŁ" : "EDYCJA KRZYWYCH: WYŁ";
+        btn.style.background = isCurveEditMode ? "var(--success)" : "#475569";
+    }
+    if (connBtn) {
+        connBtn.innerText = "TRYB ŁĄCZENIA: WYŁ";
+        connBtn.style.background = "#475569";
+    }
+    renderBase();
+};
+
+window.addConnection = (stA, stB) => {
+    // stA to stacja kliknięta jako pierwsza (OD)
+    // stB to stacja kliknięta jako druga (DO)
+    // Chcemy, aby stA (OD) została dodana jako nadrzędna do stB (DO)
+    window.toggleParent(stB, stA);
+};
+
+window.updateCurve = (id, cx, cy) => {
+    const conn = connectionsData[id] || {};
+    set(ref(db, `stats/polaczenia/${id}`), { ...conn, type: 'curve', cx, cy }).then(() => {
+        renderBase();
+    });
+};
+
+window.editConnection = (id) => {
+    const conn = connectionsData[id];
+    if (!conn) return;
+
+    const typeOptions = [
+        { value: 'regio', label: 'REGIO (Czerwony)' },
+        { value: 'skm', label: 'SKM (Żółty)' },
+        { value: 'ic', label: 'IC (Niebieski)' },
+        { value: 'custom', label: 'WŁASNY KOLOR' }
+    ];
+
+    const fields = [
+        { id: 'connType', label: 'Typ linii', value: conn.connType || 'regio', type: 'select', options: typeOptions },
+        { id: 'color', label: 'Kolor (jeśli własny)', value: conn.color || '#ffffff', type: 'color' },
+        { id: 'width', label: 'Szerokość linii', value: conn.width || 4, type: 'number' }
+    ];
+
+    if (conn.isCustom) {
+        fields.push({ id: 'x1', label: 'Start X', value: conn.x1, type: 'number' });
+        fields.push({ id: 'y1', label: 'Start Y', value: conn.y1, type: 'number' });
+        fields.push({ id: 'x2', label: 'End X', value: conn.x2, type: 'number' });
+        fields.push({ id: 'y2', label: 'End Y', value: conn.y2, type: 'number' });
+    }
+
+    window.openUniversalEdit("Edytuj Połączenie", fields, (res) => {
+        const updatedConn = {
+            ...conn,
+            connType: res.connType,
+            color: res.color,
+            width: parseFloat(res.width) || 4
+        };
+
+        if (conn.isCustom) {
+            updatedConn.x1 = parseInt(res.x1);
+            updatedConn.y1 = parseInt(res.y1);
+            updatedConn.x2 = parseInt(res.x2);
+            updatedConn.y2 = parseInt(res.y2);
+        }
+
+        set(ref(db, `stats/polaczenia/${id}`), updatedConn).then(() => {
+            window.showToast("Połączenie zaktualizowane!", "success");
+        });
+    });
+};
+
+window.toggleParentSelectionMode = (sourceName) => {
+    if (isParentSelectionMode && parentSelectionSource === sourceName) {
+        isParentSelectionMode = false;
+        parentSelectionSource = null;
+        window.showToast("Wyłączono tryb wyboru nadrzędnych", "info");
+    } else {
+        isParentSelectionMode = true;
+        parentSelectionSource = sourceName;
+        isConnectionMode = false; // Wyłączamy inne tryby
+        isCurveEditMode = false;
+        window.showToast(`Tryb wyboru nadrzędnych dla ${sourceName.toUpperCase()} - klikaj inne stacje`, "info");
+    }
+    renderBase();
+};
+
+window.toggleParent = (sourceName, targetName) => {
+    if (sourceName === targetName) return;
+    const s = stations[sourceName];
+    if (!s) return;
+
+    let parents = getParents(s);
+    const targetIdx = parents.indexOf(targetName.toLowerCase());
+
+    if (targetIdx > -1) {
+        parents.splice(targetIdx, 1);
+        window.showToast(`Usunięto ${targetName.toUpperCase()} z nadrzędnych`, "info");
+        
+        // DODATKOWO: Usuwamy z polaczenia, jeśli tam istniało (żeby linia nie została)
+        const connId = [sourceName.toLowerCase(), targetName.toLowerCase()].sort().join('|');
+        remove(ref(db, `stats/polaczenia/${connId}`));
+    } else {
+        parents.push(targetName.toLowerCase());
+        window.showToast(`Dodano ${targetName.toUpperCase()} do nadrzędnych`, "success");
+    }
+
+    const newParentStr = parents.join(', ');
+    update(ref(db, `stats/stacje_siec/${sourceName}`), { parent: newParentStr }).then(() => {
+        renderBase();
+    });
+};
+
+function renderAdminConnections() {
+    const container = document.getElementById('admin-connections-list');
+    if (!container) return;
+    container.innerHTML = "";
+
+    const customConns = Object.entries(connectionsData).filter(([id, conn]) => conn.isCustom);
+    
+    if (customConns.length === 0) {
+        container.innerHTML = `<div style="font-size: 9px; opacity: 0.4; text-align: center; padding: 10px;">Brak narysowanych linii</div>`;
+        return;
+    }
+
+    customConns.forEach(([id, conn]) => {
+        const div = document.createElement('div');
+        div.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.05); padding:8px; border-radius:8px; font-size:10px; border-left: 3px solid " + (conn.color || "var(--warning)") + "; cursor: pointer;";
+        
+        const label = conn.isCustom ? `Linia (${conn.x1},${conn.y1} → ${conn.x2},${conn.y2})` : id;
+        
+        div.innerHTML = `
+            <div style="flex-grow: 1;">
+                <b>${label}</b><br>
+                <small style="opacity:0.7">W: ${conn.width || 4} | T: ${conn.connType.toUpperCase()}</small>
+            </div>
+            <div style="display: flex; gap: 5px;">
+                <i class="fa-solid fa-pen" onclick="event.stopPropagation(); window.editConnection('${id}')"></i>
+                <i class="fa-solid fa-trash" style="color: var(--danger);" onclick="event.stopPropagation(); window.openDeleteConfirm('Czy chcesz usunąć tę linię?', () => remove(ref(db, 'stats/polaczenia/${id}')))"></i>
+            </div>
+        `;
+        div.onclick = () => {
+            // Można tu dodać centrowanie na linii
+        };
+        container.appendChild(div);
+    });
+}
+
+window.toggleDrawMode = () => {
+    isDrawMode = !isDrawMode;
+    isConnectionMode = false;
+    isCurveEditMode = false;
+    drawPoints = [];
+    
+    const btn = document.getElementById('toggle-draw-mode-btn');
+    if (btn) {
+        btn.innerText = isDrawMode ? "TRYB RYSOWANIA: WŁ" : "TRYB RYSOWANIA: WYŁ";
+        btn.style.background = isDrawMode ? "var(--success)" : "#475569";
+    }
+    
+    // Zresetuj inne przyciski
+    const connBtn = document.getElementById('toggle-connection-mode-btn');
+    const curveBtn = document.getElementById('toggle-curve-edit-btn');
+    if (connBtn) { connBtn.innerText = "TRYB ŁĄCZENIA: WYŁ"; connBtn.style.background = "#475569"; }
+    if (curveBtn) { curveBtn.innerText = "EDYCJA KRZYWYCH: WYŁ"; curveBtn.style.background = "#475569"; }
+
+    window.showToast(isDrawMode ? "Tryb rysownika aktywny - klikaj na mapę" : "Tryb rysownika wyłączony", "info");
+    renderBase();
+};
+
+window.clearDrawTemp = () => {
+    if (drawPoints.length > 0) {
+        drawPoints.pop();
+        renderBase();
+    }
+};
+
+window.startFreeDrawing = () => {
+    // Ta funkcja została zastąpiona przez toggleDrawMode
+};
+
 function renderAdminStations(filter = "") {
     const adminStationsList = document.getElementById('admin-stations-list');
     if (!adminStationsList) return;
@@ -711,6 +1438,7 @@ function appendAdminStationItem(container, key, data) {
         <i class="fa-solid fa-ellipsis-vertical" style="padding: 10px; opacity: 0.5;"></i>
     `;
     div.onclick = (e) => window.showActionMenu(e, [
+        { label: '🔗 Wybierz nadrzędne (klikaniem)', icon: 'fa-link', onClick: () => window.toggleParentSelectionMode(key) },
         { label: 'Edytuj stację', icon: 'fa-pen', onClick: () => window.editStationName(key) },
         { label: 'Usuń stację', icon: 'fa-trash', type: 'danger', onClick: () => window.deleteStation(key) }
     ]);
@@ -737,7 +1465,13 @@ window.editStationName = (key) => {
         { id: 'x', label: 'Pozycja X', value: oldData.x, type: 'number' },
         { id: 'y', label: 'Pozycja Y', value: oldData.y, type: 'number' },
         { id: 'labelPos', label: 'Pozycja nazwy', value: oldData.labelPos || 'right', type: 'select', options: labelOptions },
-        { id: 'parent', label: 'Stacja nadrzędna', value: oldData.parent || "" }
+        { id: 'fontSize', label: 'Rozmiar tekstu (px)', value: oldData.fontSize || 14, type: 'number' },
+        { id: 'rotation', label: 'Obrót tekstu (stopnie)', value: oldData.rotation || 0, type: 'number' },
+        { id: 'radius', label: 'Rozmiar kropki (Radius)', value: oldData.radius || globalPinSize, type: 'number' },
+        { id: 'offX', label: 'Offset X tekstu', value: oldData.offX || 0, type: 'number' },
+        { id: 'offY', label: 'Offset Y tekstu', value: oldData.offY || 0, type: 'number' },
+        { id: 'color', label: 'Kolor kropki', value: oldData.color || globalPinColor, type: 'color' },
+        { id: 'parent', label: 'Stacje nadrzędne', value: oldData.parent || "", type: 'tags' }
     ], (res) => {
         const newName = res.name.toLowerCase().trim();
         const updatedData = {
@@ -746,15 +1480,33 @@ window.editStationName = (key) => {
             x: parseInt(res.x) || 0,
             y: parseInt(res.y) || 0,
             labelPos: res.labelPos,
+            fontSize: parseInt(res.fontSize) || 14,
+            rotation: parseInt(res.rotation) || 0,
+            radius: parseInt(res.radius) || globalPinSize,
+            offX: parseInt(res.offX) || 0,
+            offY: parseInt(res.offY) || 0,
+            color: res.color,
             parent: res.parent ? res.parent.toLowerCase().trim() : null
         };
+
+        // Czyścimy polaczenia w bazie dla usuniętych nadrzędnych
+        const oldParents = getParents(oldData);
+        const currentParents = updatedData.parent ? updatedData.parent.split(',').map(p => p.trim().toLowerCase()).filter(p => p) : [];
+        oldParents.forEach(oldP => {
+            if (!currentParents.includes(oldP)) {
+                const connId = [key.toLowerCase().trim(), oldP].sort().join('|');
+                remove(ref(db, `stats/polaczenia/${connId}`));
+            }
+        });
 
         set(ref(db, `stats/stacje_siec/${newName}`), updatedData).then(() => {
             if (newName !== key.toLowerCase().trim()) {
                 remove(ref(db, `stats/stacje_siec/${key}`));
                 Object.keys(stations).forEach(sKey => {
-                    if (stations[sKey].parent === key.toLowerCase().trim()) {
-                        set(ref(db, `stats/stacje_siec/${sKey}/parent`), newName);
+                    const sParents = getParents(stations[sKey]);
+                    if (sParents.includes(key.toLowerCase().trim())) {
+                        const newParents = sParents.map(p => p === key.toLowerCase().trim() ? newName : p).join(', ');
+                        set(ref(db, `stats/stacje_siec/${sKey}/parent`), newParents);
                     }
                 });
             }
@@ -765,7 +1517,15 @@ window.editStationName = (key) => {
 
 window.deleteStation = (key) => {
     window.openDeleteConfirm(`To trwale usunie stację ${key.toUpperCase()} z bazy danych.`, () => {
-        remove(ref(db, `stats/stacje_siec/${key}`)).then(() => window.showToast("Stacja usunięta.", "success"));
+        remove(ref(db, `stats/stacje_siec/${key}`)).then(() => {
+            // Czyścimy połączenia w polaczeniaData dla tej stacji
+            Object.keys(connectionsData).forEach(id => {
+                if (id.includes(key.toLowerCase().trim())) {
+                    remove(ref(db, `stats/polaczenia/${id}`));
+                }
+            });
+            window.showToast("Stacja usunięta.", "success");
+        });
     });
 };
 onValue(schematyRef, (s) => {
@@ -864,9 +1624,29 @@ onValue(tripsRef, (s) => {
 
 function renderFullHistory() {
     const tableBody = document.getElementById('full-history-table-body');
+    const tableHeader = document.querySelector('#history-modal thead');
     if (!tableBody) return;
-    tableBody.innerHTML = "";
 
+    // Podświetlanie aktywnego sortowania w nagłówku
+    if (tableHeader) {
+        tableHeader.querySelectorAll('th[onclick]').forEach(th => {
+            const onclickAttr = th.getAttribute('onclick');
+            const keyMatch = onclickAttr ? onclickAttr.match(/'(.*?)'/) : null;
+            if (keyMatch && keyMatch[1] === historySortConfig.key) {
+                th.style.color = "var(--accent)";
+                th.style.fontWeight = "900";
+                const arrow = historySortConfig.direction === 'asc' ? ' ↑' : ' ↓';
+                // Usuwamy stare strzałki
+                th.innerHTML = th.innerHTML.replace(/[↑↓]/g, '').trim() + arrow;
+            } else {
+                th.style.color = "";
+                th.style.fontWeight = "";
+                th.innerHTML = th.innerHTML.replace(/[↑↓]/g, '').trim();
+            }
+        });
+    }
+
+    tableBody.innerHTML = "";
     const sorted = [...tripsData].sort((a, b) => {
         let valA = a[historySortConfig.key];
         let valB = b[historySortConfig.key];
@@ -910,8 +1690,11 @@ function renderMainHistoryList() {
     list.innerHTML = "";
 
     // Pobierz wartości z inputów, aby wiedzieć co podświetlić
-    const currentFrom = document.getElementById('route-from').value.toLowerCase().trim();
-    const currentTo = document.getElementById('route-to').value.toLowerCase().trim();
+    const inputFrom = document.getElementById('route-from');
+    const inputTo = document.getElementById('route-to');
+    
+    const currentFrom = inputFrom ? inputFrom.value.toLowerCase().trim() : "";
+    const currentTo = inputTo ? inputTo.value.toLowerCase().trim() : "";
 
     // Zawsze 3 najnowsze (po dacie zapisu/firebase push order)
     tripsData.slice(-3).reverse().forEach(t => {
@@ -948,15 +1731,15 @@ function updateLeaderboards() {
     const leaderModal = document.getElementById('leaderboards-modal');
     if (!leaderModal || !leaderModal.classList.contains('active')) return;
     
-    // 1. TOP UNITS
-    const unitCounts = {};
+    // 1. TOP SERIES (np. EN57)
+    const seriesCounts = {};
     tripsData.forEach(t => {
         if (t.unit) {
-            const u = t.unit.trim().toUpperCase();
-            unitCounts[u] = (unitCounts[u] || 0) + 1;
+            const series = t.unit.split('-')[0].trim().toUpperCase();
+            seriesCounts[series] = (seriesCounts[series] || 0) + 1;
         }
     });
-    renderTopList('top-units-list', unitCounts, 'x');
+    renderTopList('top-series-list', seriesCounts, 'x', 3); // Tylko TOP 3
 
     // 2. TOP ROUTES
     const routeCounts = {};
@@ -973,6 +1756,16 @@ function updateLeaderboards() {
 
     // 4. NAJDROŻSZY I NAJTAŃSZY
     renderPriceRanking();
+
+    // 5. TOP UNITS (na sam dół)
+    const unitCounts = {};
+    tripsData.forEach(t => {
+        if (t.unit) {
+            const u = t.unit.trim().toUpperCase();
+            unitCounts[u] = (unitCounts[u] || 0) + 1;
+        }
+    });
+    renderTopList('top-units-list', unitCounts, 'x');
 }
 
 function renderPriceRanking() {
@@ -1206,38 +1999,109 @@ function setupSVGInteractions(svgId, state, renderFn) {
 }
 
 // --- RENDERING MAP ---
-function findPath(start, end) {
-    if (!stations[start] || !stations[end]) return [];
-    const getAncestors = (name) => {
-        const path = [name];
-        let curr = stations[name];
-        while (curr && curr.parent && stations[curr.parent]) {
-            path.push(curr.parent);
-            curr = stations[curr.parent];
-        }
-        return path;
+// Zoptymalizowane liczenie natężenia
+const getUsageData = () => {
+    const usage = {};
+    if (!tripsData || tripsData.length === 0) return usage;
+
+    // Budujemy graf raz dla wszystkich obliczeń w tej turze
+    const adj = {};
+    const addEdge = (u, v) => {
+        if (!adj[u]) adj[u] = [];
+        if (!adj[v]) adj[v] = [];
+        if (!adj[u].includes(v)) adj[u].push(v);
+        if (!adj[v].includes(u)) adj[v].push(u);
     };
-    const pathA = getAncestors(start);
-    const pathB = getAncestors(end);
-    let lca = null;
-    for (const s of pathA) { if (pathB.includes(s)) { lca = s; break; } }
-    if (!lca) return [];
-    const segments = [];
-    for (let i = 0; i < pathA.indexOf(lca); i++) segments.push([pathA[i], pathA[i+1]]);
-    const toEnd = pathB.slice(0, pathB.indexOf(lca) + 1).reverse();
-    for (let i = 0; i < toEnd.length - 1; i++) segments.push([toEnd[i], toEnd[i+1]]);
-    return segments;
-}
+
+    // 1. Połączenia parent-child
+    Object.keys(stations).forEach(name => {
+        const s = stations[name];
+        getParents(s).forEach(pName => {
+            if (stations[pName]) addEdge(name, pName);
+        });
+    });
+
+    // 2. Połączenia z bazy connectionsData
+    Object.keys(connectionsData).forEach(id => {
+        const conn = connectionsData[id];
+        if (!conn.isCustom) {
+            const [a, b] = id.split('|');
+            if (stations[a] && stations[b]) {
+                addEdge(a, b);
+            }
+        }
+    });
+
+    const findPathBFS = (start, end) => {
+        if (!stations[start] || !stations[end]) return [];
+        if (start === end) return [];
+        
+        const queue = [[start]];
+        const visited = new Set([start]);
+
+        while (queue.length > 0) {
+            const path = queue.shift();
+            const node = path[path.length - 1];
+
+            if (node === end) {
+                const segs = [];
+                for (let i = 0; i < path.length - 1; i++) {
+                    segs.push([path[i], path[i+1]]);
+                }
+                return segs;
+            }
+
+            const neighbors = adj[node] || [];
+            for (const neighbor of neighbors) {
+                if (!visited.has(neighbor)) {
+                    visited.add(neighbor);
+                    queue.push([...path, neighbor]);
+                }
+            }
+        }
+        return [];
+    };
+
+    tripsData.forEach(t => {
+        const odRaw = (t.od || "").toLowerCase().trim();
+        const doRaw = (t.do || "").toLowerCase().trim();
+        if (!odRaw || !doRaw) return;
+
+        // Szukamy stacji po znormalizowanej nazwie
+        const od = Object.keys(stations).find(k => k === odRaw || normalizeStationName(k) === normalizeStationName(odRaw)) || odRaw;
+        const d = Object.keys(stations).find(k => k === doRaw || normalizeStationName(k) === normalizeStationName(doRaw)) || doRaw;
+        
+        // Zliczamy stacje końcowe
+        usage[od] = (usage[od] || 0) + 1;
+        usage[d] = (usage[d] || 0) + 1;
+
+        const segments = findPathBFS(od, d);
+        if (segments.length > 0) {
+            segments.forEach(seg => {
+                const k = seg.sort().join('|');
+                usage[k] = (usage[k] || 0) + 1;
+                
+                // Zliczamy stacje pośrednie
+                usage[seg[0]] = (usage[seg[0]] || 0) + 1;
+                usage[seg[1]] = (usage[seg[1]] || 0) + 1;
+            });
+        }
+    });
+    return usage;
+};
 
 const getHeatColor = (count) => {
-    if (count === 0) return "#475569";
-    if (count < 5) return "#facc15"; // Żółty
-    if (count < 20) return "#f97316"; // Pomarańczowy
-    return "#ef4444"; // Czerwony
+    if (count === 0) return "#334155"; // Wyraźniejszy szary dla braku ruchu (widoczna sieć)
+    if (count < 2) return "#fbbf24";  // Żółty (1 przejazd)
+    if (count < 5) return "#f59e0b";  // Jasny pomarańcz
+    if (count < 10) return "#ea580c"; // Ciemny pomarańcz
+    if (count < 20) return "#dc2626"; // Czerwony
+    return "#7f1d1d"; // Bordowy (Bardzo duży ruch)
 };
 
 function renderMapElements(svgId, state, mode = 'base') {
     const svg = document.getElementById(svgId);
+    if (!svg) return;
     svg.innerHTML = "";
     const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
     g.setAttribute("transform", `translate(${state.x},${state.y}) scale(${state.scale})`);
@@ -1282,6 +2146,30 @@ function renderMapElements(svgId, state, mode = 'base') {
             const cursorpt = pt.matrixTransform(g.getScreenCTM().inverse());
             const x = Math.round(cursorpt.x);
             const y = Math.round(cursorpt.y);
+
+            if (isDrawMode) {
+                drawPoints.push({ x, y });
+                if (drawPoints.length === 2) {
+                    const id = `custom_${Date.now()}`;
+                    const type = document.getElementById('conn-type-select')?.value || 'regio';
+                    set(ref(db, `stats/polaczenia/${id}`), { 
+                        type: 'line', 
+                        connType: type,
+                        color: '#ffffff',
+                        x1: drawPoints[0].x,
+                        y1: drawPoints[0].y,
+                        x2: drawPoints[1].x,
+                        y2: drawPoints[1].y,
+                        isCustom: true
+                    }).then(() => {
+                        drawPoints = [];
+                        window.showToast("Narysowano swobodną linię", "success");
+                    });
+                }
+                renderBase();
+                return;
+            }
+
             document.getElementById('new-st-x').value = x;
             document.getElementById('new-st-y').value = y;
             tempMarker = { x, y };
@@ -1356,6 +2244,29 @@ function renderMapElements(svgId, state, mode = 'base') {
             const cursorpt = pt.matrixTransform(g.getScreenCTM().inverse());
             const x = Math.round(cursorpt.x);
             const y = Math.round(cursorpt.y);
+
+            if (isDrawMode) {
+                drawPoints.push({ x, y });
+                if (drawPoints.length === 2) {
+                    const id = `custom_${Date.now()}`;
+                    const type = document.getElementById('conn-type-select')?.value || 'regio';
+                    set(ref(db, `stats/polaczenia/${id}`), { 
+                        type: 'line', 
+                        connType: type,
+                        x1: drawPoints[0].x,
+                        y1: drawPoints[0].y,
+                        x2: drawPoints[1].x,
+                        y2: drawPoints[1].y,
+                        isCustom: true
+                    }).then(() => {
+                        drawPoints = [];
+                        window.showToast("Narysowano swobodną linię", "success");
+                    });
+                }
+                renderBase();
+                return;
+            }
+
             document.getElementById('new-st-x').value = x;
             document.getElementById('new-st-y').value = y;
             tempMarker = { x, y };
@@ -1368,39 +2279,172 @@ function renderMapElements(svgId, state, mode = 'base') {
     }
 
     // 2. Połączenia (Heatmap logic)
-    const usage = {};
-    if(mode === 'heat') {
-        tripsData.forEach(t => {
-            const od = t.od.toLowerCase().trim();
-            const d = t.do.toLowerCase().trim();
-            const pathSegments = findPath(od, d);
-            pathSegments.forEach(seg => {
-                const k = seg.sort().join('|');
-                usage[k] = (usage[k] || 0) + 1;
-            });
+    const usage = mode === 'heat' ? getUsageData() : {};
+
+    // Rysuj połączenia z bazy connectionsData
+    Object.keys(connectionsData).forEach(id => {
+        const conn = connectionsData[id];
+        let s, p;
+
+        if (conn.isCustom) {
+            s = { x: conn.x1, y: conn.y1 };
+            p = { x: conn.x2, y: conn.y2 };
+        } else {
+            const [a, b] = id.split('|');
+            if (stations[a] && stations[b]) {
+                s = stations[a];
+                p = stations[b];
+            }
+        }
+
+        if (s && p) {
+            let pathData;
+            if (conn.type === 'curve' && conn.cx !== undefined && conn.cy !== undefined) {
+                pathData = `M ${s.x} ${s.y} Q ${conn.cx} ${conn.cy} ${p.x} ${p.y}`;
+            } else {
+                pathData = `M ${s.x} ${s.y} L ${p.x} ${p.y}`;
+            }
+
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.setAttribute("d", pathData);
+            path.setAttribute("fill", "none");
+            
+            // Kolory na podstawie typu
+            let strokeColor = "#6366f1"; // Default
+            if (conn.connType === 'regio') strokeColor = "#ef4444"; // Czerwony
+            else if (conn.connType === 'skm') strokeColor = "#fbbf24"; // Żółty
+            else if (conn.connType === 'ic') strokeColor = "#3b82f6"; // Niebieski
+            else if (conn.connType === 'custom') strokeColor = conn.color || "#ffffff"; // Własny kolor
+
+            if(mode === 'heat') {
+                const count = usage[id] || 0;
+                path.setAttribute("stroke", getHeatColor(count));
+                // Stała grubość niezależna od zoomu, żeby nie było "ciapy"
+                const baseW = (conn.width || globalLineWidth) * globalHeatWidth;
+                const extraW = Math.min(count * 1.5, 25);
+                path.setAttribute("stroke-width", baseW + extraW);
+                path.setAttribute("stroke-linecap", "round");
+                path.setAttribute("stroke-linejoin", "round");
+                path.setAttribute("filter", "url(#heat-glow)");
+                path.style.opacity = count > 0 ? 0.8 : 0.1;
+            } else {
+                path.setAttribute("stroke", strokeColor);
+                path.setAttribute("stroke-width", (conn.width || globalLineWidth));
+                path.style.opacity = 0.6;
+                if (mode === 'base') {
+                    path.style.cursor = "pointer";
+                    path.onclick = (e) => {
+                        e.stopPropagation();
+                        if (isCurveEditMode) {
+                            // W trybie krzywych, kliknięcie w linię bez punktu zgięcia tworzy go w miejscu kliknięcia
+                            const pt = svg.createSVGPoint();
+                            pt.x = e.clientX; pt.y = e.clientY;
+                            const cursorpt = pt.matrixTransform(g.getScreenCTM().inverse());
+                            window.updateCurve(id, Math.round(cursorpt.x), Math.round(cursorpt.y));
+                        } else {
+                            window.showActionMenu(e, [
+                                { label: 'Edytuj połączenie', icon: 'fa-pen', onClick: () => window.editConnection(id) },
+                                { label: 'Usuń połączenie', icon: 'fa-trash', type: 'danger', onClick: () => {
+                                    window.openDeleteConfirm(`Czy chcesz trwale usunąć to połączenie?`, () => {
+                                        remove(ref(db, `stats/polaczenia/${id}`));
+                                    });
+                                }}
+                            ]);
+                        }
+                    };
+                }
+            }
+            g.appendChild(path);
+
+            // Jeśli tryb edycji krzywych i to jest krzywa, narysuj uchwyt
+            if (mode === 'base' && isCurveEditMode && conn.type === 'curve') {
+                const handle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                handle.setAttribute("cx", conn.cx); handle.setAttribute("cy", conn.cy);
+                handle.setAttribute("r", 8 / state.scale);
+                handle.setAttribute("fill", "var(--warning)");
+                handle.setAttribute("stroke", "#fff");
+                handle.setAttribute("stroke-width", 2 / state.scale);
+                handle.style.cursor = "move";
+                
+                let isDraggingHandle = false;
+                handle.onmousedown = (e) => { e.stopPropagation(); isDraggingHandle = true; };
+                svg.addEventListener('mousemove', (e) => {
+                    if (!isDraggingHandle) return;
+                    const pt = svg.createSVGPoint();
+                    pt.x = e.clientX; pt.y = e.clientY;
+                    const cursorpt = pt.matrixTransform(g.getScreenCTM().inverse());
+                    conn.cx = Math.round(cursorpt.x);
+                    conn.cy = Math.round(cursorpt.y);
+                    handle.setAttribute("cx", conn.cx);
+                    handle.setAttribute("cy", conn.cy);
+                    // Aktualizuj ścieżkę wizualnie bez Firebase dla płynności
+                    path.setAttribute("d", `M ${s.x} ${s.y} Q ${conn.cx} ${conn.cy} ${p.x} ${p.y}`);
+                });
+                window.addEventListener('mouseup', () => {
+                    if (isDraggingHandle) {
+                        isDraggingHandle = false;
+                        window.updateCurve(id, conn.cx, conn.cy);
+                    }
+                });
+                g.appendChild(handle);
+            }
+        }
+    });
+
+    // Rysuj tymczasowy punkt rysownika
+    if (mode === 'base' && isDrawMode && drawPoints.length > 0) {
+        drawPoints.forEach(p => {
+            const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            dot.setAttribute("cx", p.x); dot.setAttribute("cy", p.y);
+            dot.setAttribute("r", 5 / state.scale);
+            dot.setAttribute("fill", "var(--warning)");
+            g.appendChild(dot);
         });
     }
 
+    // Zachowujemy stare połączenia parent-child dla kompatybilności
     Object.keys(stations).forEach(name => {
         const s = stations[name];
-        if(s.parent && stations[s.parent]) {
-            const p = stations[s.parent];
-            const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-            line.setAttribute("x1", s.x); line.setAttribute("y1", s.y);
-            line.setAttribute("x2", p.x); line.setAttribute("y2", p.y);
-            
-            if(mode === 'heat') {
-                const count = usage[[name, s.parent].sort().join('|')] || 0;
-                line.style.strokeWidth = (6 + Math.min(count, 10));
-                line.style.strokeLinecap = "round";
-                line.style.stroke = getHeatColor(count);
-            } else {
-                line.style.stroke = "#6366f1";
-                line.style.strokeWidth = 3;
-                line.style.opacity = 0.6;
+        getParents(s).forEach(pName => {
+            if (stations[pName]) {
+                const p = stations[pName];
+                const id = [name, pName].sort().join('|');
+                // Jeśli to połączenie już istnieje w connectionsData, nie rysuj go drugi raz
+                if (connectionsData[id]) return;
+
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("d", `M ${s.x} ${s.y} L ${p.x} ${p.y}`);
+                path.setAttribute("fill", "none");
+                
+                if(mode === 'heat') {
+                    const count = usage[id] || 0;
+                    path.setAttribute("stroke", getHeatColor(count));
+                    const baseW = globalLineWidth * globalHeatWidth;
+                    path.setAttribute("stroke-width", baseW + Math.min(count, 10));
+                    path.setAttribute("stroke-linecap", "round");
+                    path.setAttribute("stroke-linejoin", "round");
+                    path.style.opacity = count > 0 ? 0.8 : 0.1;
+                } else {
+                    path.setAttribute("stroke", "#6366f1");
+                    path.setAttribute("stroke-width", globalLineWidth);
+                    path.style.opacity = 0.6;
+                    
+                    if (mode === 'base') {
+                        path.style.cursor = "pointer";
+                        path.onclick = (e) => {
+                            e.stopPropagation();
+                            if (isCurveEditMode) {
+                                const pt = svg.createSVGPoint();
+                                pt.x = e.clientX; pt.y = e.clientY;
+                                const cursorpt = pt.matrixTransform(g.getScreenCTM().inverse());
+                                window.updateCurve(id, Math.round(cursorpt.x), Math.round(cursorpt.y));
+                            }
+                        };
+                    }
+                }
+                g.appendChild(path);
             }
-            g.appendChild(line);
-        }
+        });
     });
 
     // 3. Stacje i Etykiety
@@ -1412,26 +2456,71 @@ function renderMapElements(svgId, state, mode = 'base') {
             // Na heatmapie ukrywamy etykiety, chyba że jest bardzo duży zoom
             if (state.scale < 1.5) showLabel = false;
         } else {
-            if (state.scale < 0.4) {
-                if (index % 4 !== 0) showLabel = false;
-            } else if (state.scale < 0.8) {
-                if (index % 2 !== 0) showLabel = false;
-            }
+            // W trybie edycji (base) ZAWSZE pokazujemy wszystkie etykiety
+            // Filtrowanie index % N tylko dla trybu podglądu, jeśli to konieczne
+            // Na razie wyłączamy filtrowanie w base, żeby widzieć wszystko co dodajemy
+            showLabel = true;
         }
 
         const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        dot.setAttribute("cx", s.x); dot.setAttribute("cy", s.y); dot.setAttribute("r", globalPinSize);
-        dot.setAttribute("fill", "#fff");
+        dot.setAttribute("cx", s.x); dot.setAttribute("cy", s.y); 
+        
+        if (mode === 'heat') {
+            const stationUsage = usage[name] || 0;
+            const r = ( (s.radius || globalPinSize) * 0.5 + Math.min(stationUsage, 6));
+            dot.setAttribute("r", r);
+            dot.setAttribute("fill", getHeatColor(stationUsage));
+            dot.setAttribute("stroke", "#fff");
+            dot.setAttribute("stroke-width", 0.5);
+            dot.style.opacity = stationUsage > 0 ? 0.9 : 0.05;
+        } else {
+            dot.setAttribute("r", (s.radius || globalPinSize));
+            let fillColor = s.color || globalPinColor;
+            if (isConnectionMode && connectionStartStation === name) fillColor = "var(--accent)";
+            if (isParentSelectionMode && parentSelectionSource === name) fillColor = "var(--warning)";
+            if (isParentSelectionMode && parentSelectionSource !== name) {
+                const sourceParents = getParents(stations[parentSelectionSource]);
+                if (sourceParents.includes(name.toLowerCase())) fillColor = "var(--success)";
+            }
+            dot.setAttribute("fill", fillColor);
+            dot.style.opacity = "1";
+        }
         dot.style.cursor = "pointer";
         dot.onclick = (e) => {
             e.stopPropagation();
-            window.editStationName(name);
+            if (isParentSelectionMode) {
+                window.toggleParent(parentSelectionSource, name);
+                return;
+            }
+            if (isConnectionMode) {
+                if (!connectionStartStation) {
+                    connectionStartStation = name;
+                    window.showToast(`START (OD): ${name.toUpperCase()} - wybierz stację końcową`, "info");
+                    renderBase();
+                } else if (connectionStartStation === name) {
+                    connectionStartStation = null;
+                    renderBase();
+                } else {
+                    window.addConnection(connectionStartStation, name);
+                    // Nie resetujemy startu, aby móc łączyć stację OD z wieloma DO po kolei
+                    window.showToast(`DODANO POŁĄCZENIE: ${connectionStartStation.toUpperCase()} ➔ ${name.toUpperCase()}`, "success");
+                    renderBase();
+                }
+            } else {
+                window.editStationName(name);
+            }
         };
         g.appendChild(dot);
 
         if (showLabel) {
             const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
             const pos = s.labelPos || 'right';
+            
+            // Ograniczenie nazw na heatmapie
+            if (mode === 'heat') {
+                if (state.scale < 1.5) return; 
+            } 
+            
             let dx = 12;
             let dy = 5;
             let anchor = "start";
@@ -1443,14 +2532,138 @@ function renderMapElements(svgId, state, mode = 'base') {
             else if (pos === 'top-left') { dx = -12; dy = -12; anchor = "end"; }
             else if (pos === 'bottom-right') { dx = 12; dy = 20; anchor = "start"; }
             else if (pos === 'bottom-left') { dx = -12; dy = 20; anchor = "end"; }
+            else if (pos === 'center') { dx = 0; dy = 5; anchor = "middle"; }
 
-            txt.setAttribute("x", s.x + dx); 
-            txt.setAttribute("y", s.y + dy);
+            // Użyj customowego offsetu jeśli istnieje
+            const finalDx = s.offX !== undefined ? s.offX : dx;
+            const finalDy = s.offY !== undefined ? s.offY : dy;
+
+            txt.setAttribute("x", s.x + finalDx); 
+            txt.setAttribute("y", s.y + finalDy);
             txt.setAttribute("text-anchor", anchor);
-            txt.setAttribute("fill", "#cbd5e1"); 
-            txt.setAttribute("font-size", mode === 'heat' ? "10px" : "14px"); // Mniejsze na heatmapie
-            txt.setAttribute("font-weight", "600");
-            txt.style.pointerEvents = "none"; // Żeby nie przeszkadzały w klikaniu kropek
+            
+            // Aplikuj rotację (indywidualną lub globalną)
+            const rotation = s.rotation !== undefined ? s.rotation : globalTextRotation;
+            if (rotation !== 0) {
+                txt.setAttribute("transform", `rotate(${rotation} ${s.x + finalDx} ${s.y + finalDy})`);
+            }
+
+            txt.setAttribute("fill", mode === 'base' ? "#fff" : "#cbd5e1"); 
+            
+            // Stała wielkość czcionki w jednostkach SVG
+            let baseFS = s.fontSize || 13;
+            if (state.scale < 0.6) baseFS *= 0.8; // Delikatne zmniejszenie przy dużym oddaleniu
+            
+            txt.setAttribute("font-size", baseFS + "px");
+            txt.setAttribute("font-weight", "700");
+            
+            // Cień zamiast obrysu dla czystszego wyglądu
+            txt.style.textShadow = "1px 1px 2px rgba(0,0,0,0.8)";
+
+            if (pos === 'center' && s.offX === undefined) {
+                txt.setAttribute("text-anchor", "middle");
+                txt.setAttribute("y", s.y + 5);
+                txt.setAttribute("x", s.x);
+                // Dla środka też aplikujemy rotację
+                if (rotation !== 0) {
+                    txt.setAttribute("transform", `rotate(${rotation} ${s.x} ${s.y + 5})`);
+                }
+                txt.setAttribute("fill", "#000"); // Czarny napis na białej kropce
+                txt.style.textShadow = "none";
+                txt.setAttribute("font-size", "8px");
+            }
+
+            if (mode === 'base') {
+                if (isLabelEditMode) {
+                    txt.style.cursor = "move";
+                    txt.style.pointerEvents = "auto";
+                    txt.style.userSelect = "none";
+                    txt.style.fontWeight = "900";
+                    txt.setAttribute("fill", "var(--accent)"); // Zmiana koloru zamiast rozmycia
+
+                    txt.onmousedown = (e) => {
+                        e.stopPropagation();
+                        
+                        // Wybieramy stację do obrotu pokrętłem
+                        window.selectLabelForRotation(name, txt, s, finalDx, finalDy);
+
+                        // Usuwamy poświatę na czas przeciągania, żeby nie "rozmywało"
+                        txt.style.filter = "none"; 
+                        
+                        draggedLabel = {
+                            name: name,
+                            startX: e.clientX,
+                            startY: e.clientY,
+                            initialOffX: finalDx,
+                            initialOffY: finalDy,
+                            initialRotation: rotation
+                        };
+
+                        const onMouseMove = (moveEvent) => {
+                            if (!draggedLabel) return;
+                            
+                            if (moveEvent.shiftKey) {
+                                // Rotacja za pomocą Shift + ruch myszy (lewo/prawo)
+                                const deltaRot = (moveEvent.clientX - draggedLabel.startX) / 2;
+                                const newRot = (draggedLabel.initialRotation + deltaRot) % 360;
+                                txt.setAttribute("transform", `rotate(${newRot} ${s.x + finalDx} ${s.y + finalDy})`);
+                                draggedLabel.currentRotation = newRot;
+                            } else {
+                                // Przesuwanie
+                                const deltaX = (moveEvent.clientX - draggedLabel.startX) / state.scale;
+                                const deltaY = (moveEvent.clientY - draggedLabel.startY) / state.scale;
+                                
+                                const newOffX = draggedLabel.initialOffX + deltaX;
+                                const newOffY = draggedLabel.initialOffY + deltaY;
+                                
+                                txt.setAttribute("x", s.x + newOffX);
+                                txt.setAttribute("y", s.y + newOffY);
+                                
+                                const r = draggedLabel.currentRotation !== undefined ? draggedLabel.currentRotation : rotation;
+                                if (r !== 0) {
+                                    txt.setAttribute("transform", `rotate(${r} ${s.x + newOffX} ${s.y + newOffY})`);
+                                }
+                                
+                                draggedLabel.currentOffX = newOffX;
+                                draggedLabel.currentOffY = newOffY;
+                            }
+                        };
+
+                        const onMouseUp = (upEvent) => {
+                            if (draggedLabel) {
+                                const updates = {};
+                                if (draggedLabel.currentOffX !== undefined) {
+                                    updates.offX = Math.round(draggedLabel.currentOffX);
+                                    updates.offY = Math.round(draggedLabel.currentOffY);
+                                }
+                                if (draggedLabel.currentRotation !== undefined) {
+                                    updates.rotation = Math.round(draggedLabel.currentRotation);
+                                }
+
+                                if (Object.keys(updates).length > 0) {
+                                    update(ref(db, `stats/stacje_siec/${draggedLabel.name}`), updates).then(() => {
+                                        console.log(`Zapisano pozycję dla ${draggedLabel.name}`);
+                                    });
+                                }
+                                
+                                draggedLabel = null;
+                                // Przywracamy kolor po zakończeniu
+                                renderBase(); 
+                            }
+                            window.removeEventListener('mousemove', onMouseMove);
+                            window.removeEventListener('mouseup', onMouseUp);
+                        };
+
+                        window.addEventListener('mousemove', onMouseMove);
+                        window.addEventListener('mouseup', onMouseUp);
+                    };
+                } else {
+                    txt.style.pointerEvents = "none";
+                }
+            } else {
+                txt.style.pointerEvents = "none";
+            }
+
             txt.textContent = name.toUpperCase();
             g.appendChild(txt);
         }
@@ -1475,8 +2688,20 @@ window.calculatePrice = () => {
     const fInputElem = document.getElementById('route-from');
     const tInputElem = document.getElementById('route-to');
     const d = parseFloat(document.getElementById('discount-select').value);
+
+    // Resetowanie błędów
+    [fInputElem, tInputElem].forEach(input => {
+        if (input) {
+            input.classList.remove('invalid');
+            input.oninput = () => input.classList.remove('invalid');
+        }
+    });
     
-    if(!fInputElem.value || !tInputElem.value) return window.showToast("Wpisz lub wybierz stacje!", "error");
+    let hasError = false;
+    if(!fInputElem.value) { fInputElem.classList.add('invalid'); hasError = true; }
+    if(!tInputElem.value) { tInputElem.classList.add('invalid'); hasError = true; }
+
+    if(hasError) return window.showToast("Wpisz lub wybierz stacje!", "error");
 
     const stFrom = findStation(fInputElem.value);
     const stTo = findStation(tInputElem.value);
@@ -1502,12 +2727,26 @@ window.calculatePrice = () => {
 window.addNewTrip = () => {
     const fInputElem = document.getElementById('route-from');
     const tInputElem = document.getElementById('route-to');
-    const zl = parseFloat(document.getElementById('trip-amount').value);
+    const cenaInput = document.getElementById('trip-amount');
+    const zl = parseFloat(cenaInput.value);
     const nr = document.getElementById('regio-num').value;
     const unit = document.getElementById('unit-num').value;
     const note = document.getElementById('trip-note').value;
+
+    // Resetowanie błędów
+    [fInputElem, tInputElem, cenaInput].forEach(input => {
+        if (input) {
+            input.classList.remove('invalid');
+            input.oninput = () => input.classList.remove('invalid');
+        }
+    });
     
-    if(!fInputElem.value || !tInputElem.value || isNaN(zl)) return window.showToast("Uzupełnij dane przejazdu!", "error");
+    let hasError = false;
+    if(!fInputElem.value) { fInputElem.classList.add('invalid'); hasError = true; }
+    if(!tInputElem.value) { tInputElem.classList.add('invalid'); hasError = true; }
+    if(isNaN(zl)) { cenaInput.classList.add('invalid'); hasError = true; }
+
+    if(hasError) return window.showToast("Uzupełnij podświetlone pola!", "error");
 
     // Autokorekta przed zapisem
     const stFrom = findStation(fInputElem.value);
@@ -1528,7 +2767,7 @@ window.addNewTrip = () => {
         set(statsRef, earnedSoFar + zl);
         fInputElem.value = "";
         tInputElem.value = "";
-        document.getElementById('trip-amount').value = "";
+        cenaInput.value = "";
         document.getElementById('regio-num').value = "";
         document.getElementById('unit-num').value = "";
         document.getElementById('trip-note').value = "";
@@ -1541,18 +2780,31 @@ window.saveNewStation = () => {
     const kmInput = document.getElementById('new-st-km');
     const xInput = document.getElementById('new-st-x');
     const yInput = document.getElementById('new-st-y');
-    const parentInput = document.getElementById('new-st-parent');
     const labelPosInput = document.getElementById('new-st-label-pos');
 
+    // Resetowanie błędów
+    [nameInput, xInput, yInput].forEach(input => {
+        if (input) {
+            input.classList.remove('invalid');
+            // Usuń poprzedni listener jeśli istnieje, żeby nie dublować
+            input.oninput = () => input.classList.remove('invalid');
+        }
+    });
+
     const name = nameInput.value.toLowerCase().trim();
-    const km = parseFloat(kmInput.value);
+    const km = kmInput.value === "" ? 0 : parseFloat(kmInput.value);
     const x = parseInt(xInput.value);
     const y = parseInt(yInput.value);
-    const p = parentInput.value.toLowerCase().trim();
+    const p = newStationParentHandler ? newStationParentHandler.getTags().join(', ') : "";
     const lp = labelPosInput.value;
 
-    if(!name || isNaN(km) || isNaN(x) || isNaN(y)) {
-        return window.showToast("Uzupełnij wszystkie dane stacji!", "error");
+    let hasError = false;
+    if (!name) { nameInput.classList.add('invalid'); hasError = true; }
+    if (isNaN(x)) { xInput.classList.add('invalid'); hasError = true; }
+    if (isNaN(y)) { yInput.classList.add('invalid'); hasError = true; }
+
+    if (hasError) {
+        return window.showToast("Uzupełnij podświetlone pola!", "error");
     }
 
     const newStationData = { 
@@ -1560,7 +2812,13 @@ window.saveNewStation = () => {
         x, 
         y, 
         parent: p || null, 
-        labelPos: lp 
+        labelPos: lp,
+        fontSize: 14,
+        rotation: 0,
+        radius: globalPinSize,
+        offX: 0,
+        offY: 0,
+        color: globalPinColor
     };
 
     set(ref(db, `stats/stacje_siec/${name}`), newStationData).then(() => {
@@ -1569,7 +2827,7 @@ window.saveNewStation = () => {
         kmInput.value = "";
         xInput.value = "";
         yInput.value = "";
-        parentInput.value = "";
+        if (newStationParentHandler) newStationParentHandler.setTags([]);
         renderBase();
         window.showToast("Stacja dodana do bazy!", "success");
     }).catch(e => {
@@ -1681,6 +2939,8 @@ window.handleBusClick = () => {
         busClicks = 0;
         isAdminUnlocked = true;
         document.getElementById('admin-bus-trigger').classList.add('admin-active');
+        const labelPanel = document.getElementById('admin-label-edit-panel');
+        if (labelPanel) labelPanel.style.display = 'block';
         window.openSecretPanel();
     }
 };
@@ -1937,12 +3197,18 @@ window.copyToClipboard = (text, element) => {
 };
 
 window.toggleMenu = () => {
-    const isOpening = !document.getElementById('side-menu').classList.contains('active');
-    document.getElementById('side-menu').classList.toggle('active');
-    document.getElementById('menu-overlay').classList.toggle('active');
+    const sideMenu = document.getElementById('side-menu');
+    const menuOverlay = document.getElementById('menu-overlay');
+    const isOpening = !sideMenu.classList.contains('active');
+    
+    sideMenu.classList.toggle('active');
+    menuOverlay.classList.toggle('active');
     
     if (isOpening) {
         document.body.classList.add('no-scroll');
+        // Zamknij menu edytora jeśli jest otwarte
+        const editorMenu = document.getElementById('editor-side-menu');
+        if (editorMenu) editorMenu.classList.remove('active');
     } else {
         const anyModalActive = !!document.querySelector('.modal.active');
         if (!anyModalActive) {
@@ -2072,7 +3338,8 @@ window.filterStations = () => {
 // Sterowanie oknami
 window.openMap = () => { 
     window.closeAllModals();
-    document.getElementById('map-modal').classList.add('active'); 
+    const modal = document.getElementById('station-editor-modal');
+    if (modal) modal.classList.add('active'); 
     window.setActiveMenuItem('menu-map');
     document.body.classList.add('no-scroll');
     renderBase(); 
@@ -2169,8 +3436,13 @@ window.openTariff = () => {
             document.getElementById('ticket-price-display').innerText = `${data.price || '153,00'} zł`;
 
             if (data.qrData) {
-                const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(data.qrData)}`;
+                // Używamy API Tec-It dla kodów Aztec (lepsze dla biletów kolejowych)
+                const qrUrl = `https://barcode.tec-it.com/barcode.ashx?data=${encodeURIComponent(data.qrData)}&code=Aztec&multiplebarcodes=false&translate-esc=false&unit=Fit&dpi=96&imagetype=Png&rotation=0&color=%23000000&bgcolor=%23ffffff&quzone=0&quiet=0`;
                 document.getElementById('ticket-qr-img').src = qrUrl;
+                
+                // Aktualizujemy też podgląd w powiększeniu
+                const fullQrImg = document.getElementById('full-qr-img');
+                if (fullQrImg) fullQrImg.src = qrUrl;
             }
 
             // Uruchom odliczanie na żywo w nagłówku
@@ -2345,13 +3617,6 @@ window.openCity = (city) => {
 
 window.toggleGrid = () => { gridActive = !gridActive; renderBase(); document.getElementById('grid-btn').innerText = `SIATKA: ${gridActive?'WŁ':'WYŁ'}`; };
 
-// Init renderów
-const renderBase = () => renderMapElements('svg-map', mapState, 'base');
-const renderHeat = () => {
-    renderMapElements('svg-heatmap', heatState, 'heat');
-    updateHotRoutesUI();
-};
-
 function updateHotRoutesUI() {
     const usage = {};
     tripsData.forEach(t => {
@@ -2422,6 +3687,8 @@ window.checkMaintenancePassword = () => {
     if (pass === storedPassword) {
         isAdminUnlocked = true;
         document.getElementById('admin-bus-trigger').classList.add('admin-active');
+        const labelPanel = document.getElementById('admin-label-edit-panel');
+        if (labelPanel) labelPanel.style.display = 'block';
         updateMaintenanceUI();
         updateMapVisibilityUI();
         window.showToast("Zalogowano pomyślnie!", "success");
@@ -2499,3 +3766,4 @@ window.saveMaintenanceTime = () => {
 
 // Inicjalizacja UI
 updateMaintenanceUI();
+console.log("System RegioPomorskie w pełni załadowany.");

@@ -71,70 +71,72 @@
 
     <!-- GŁÓWNA ZAWARTOŚĆ STRONY (ukrywana w trybie konserwacji) -->
     <div id="main-app-content" style="display: none;">
-        <div class="menu-trigger" onclick="window.toggleMenu()">☰</div>
         <div class="menu-overlay" id="menu-overlay" onclick="window.toggleMenu()"></div>
         
         <nav class="side-menu" id="side-menu">
-        <div class="side-menu-header">
-            <div class="circle-icon" id="admin-bus-trigger" onclick="window.handleBusClick()">
-                <i class="fa-solid fa-bus"></i>
-            </div>
-            <div class="header-text">
-                <div class="brand-name">Albatrosova</div>
-                <div class="location-selector" onclick="window.toggleCityDropdown(event)">
-                    Bilet Miesięczny Pomorskie <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
+            <!-- Zawartość menu -->
+            <div class="side-menu-header">
+                <div class="circle-icon" id="admin-bus-trigger" onclick="window.handleBusClick()">
+                    <i class="fa-solid fa-bus"></i>
                 </div>
-                <!-- Dropdown Miast -->
-                <div id="city-dropdown" class="city-dropdown">
-                    <div class="city-option selected">Bilet Miesięczny Pomorskie</div>
-                    <div class="city-option gdansk-link" onclick="window.openCity('gdansk')">Gdańsk</div>
-                    <div class="city-option disabled">Warszawa <small>(Soon)</small></div>
+                <div class="header-text">
+                    <div class="brand-name">Albatrosova</div>
+                    <div class="location-selector" onclick="window.toggleCityDropdown(event)">
+                        Bilet Miesięczny Pomorskie <i class="fa-solid fa-chevron-down" style="font-size: 10px;"></i>
+                    </div>
+                    <!-- Dropdown Miast -->
+                    <div id="city-dropdown" class="city-dropdown">
+                        <div class="city-option selected">Bilet Miesięczny Pomorskie</div>
+                        <div class="city-option gdansk-link" onclick="window.openCity('gdansk')">Gdańsk</div>
+                        <div class="city-option disabled">Warszawa <small>(Soon)</small></div>
+                    </div>
+                </div>
+                <div class="close-menu-btn" onclick="window.toggleMenu()">×</div>
+            </div>
+
+            <div class="menu-items-container">
+                <div class="menu-item active" id="menu-home" onclick="window.closeAllModals();">
+                    <i class="fa-solid fa-calendar-days"></i> Strona Główna
+                </div>
+                <div class="menu-item" id="menu-gallery" onclick="window.openGallery();">
+                    <i class="fa-solid fa-clock-rotate-left"></i> Schematy
+                </div>
+                <div class="menu-item" id="menu-map" onclick="window.openMap();">
+                    <i class="fa-solid fa-location-dot"></i> Mapa
+                </div>
+                <div class="menu-item" id="menu-heatmap" onclick="window.openHeatmap();">
+                    <i class="fa-solid fa-fire"></i> Natężenie tras
+                </div>
+                <div class="menu-item" id="menu-tariff" onclick="window.openTariff();">
+                    <i class="fa-solid fa-newspaper"></i> Bilet Taryfa pomorska
+                </div>
+                <div class="menu-item" id="menu-leaderboards" onclick="window.openLeaderboards();">
+                    <i class="fa-solid fa-trophy"></i> Rankingi
+                </div>
+                <div class="menu-item" id="menu-history" onclick="window.openFullHistory();">
+                    <i class="fa-solid fa-list-ul"></i> Pełna Historia
+                </div>
+                <div class="menu-item" id="menu-settings" onclick="window.openSettings();">
+                    <i class="fa-solid fa-gear"></i> Ustawienia bazy
                 </div>
             </div>
-            <div class="close-menu-btn" onclick="window.toggleMenu()">×</div>
-        </div>
 
-        <div class="menu-items-container">
-            <div class="menu-item active" id="menu-home" onclick="window.closeAllModals();">
-                <i class="fa-solid fa-calendar-days"></i> Strona Główna
-            </div>
-            <div class="menu-item" id="menu-gallery" onclick="window.openGallery();">
-                <i class="fa-solid fa-clock-rotate-left"></i> Schematy
-            </div>
-            <div class="menu-item" id="menu-map" onclick="window.openMap();">
-                <i class="fa-solid fa-location-dot"></i> Mapa
-            </div>
-            <div class="menu-item" id="menu-heatmap" onclick="window.openHeatmap();">
-                <i class="fa-solid fa-fire"></i> Natężenie tras
-            </div>
-            <div class="menu-item" id="menu-tariff" onclick="window.openTariff();">
-                <i class="fa-solid fa-newspaper"></i> Bilet Taryfa pomorska
-            </div>
-            <div class="menu-item" id="menu-leaderboards" onclick="window.openLeaderboards();">
-                <i class="fa-solid fa-trophy"></i> Rankingi
-            </div>
-            <div class="menu-item" id="menu-history" onclick="window.openFullHistory();">
-                <i class="fa-solid fa-list-ul"></i> Pełna Historia
-            </div>
-            <div class="menu-item" id="menu-settings" onclick="window.openSettings();">
-                <i class="fa-solid fa-gear"></i> Ustawienia bazy
-            </div>
-        </div>
-
-        <div class="side-menu-footer">
-            <div style="text-align: center; font-size: 10px; opacity: 0.5; margin-bottom: 10px; font-weight: 600; letter-spacing: 1px;">MADE WITH <i class="fa-solid fa-heart" style="color: #ef4444;"></i> BY KONRAD</div>
-            <div class="social-icons">
-                <a href="https://www.instagram.com/transport_gdanski/" target="_blank" style="color: inherit;"><i class="fa-brands fa-instagram"></i></a>
-                <a href="https://github.com/forumowskii" target="_blank" style="color: inherit;"><i class="fa-brands fa-github"></i></a>
-                <div style="position: relative; display: inline-block;">
-                    <i class="fa-brands fa-discord" onclick="window.copyToClipboard('forumowski', this)" style="cursor: pointer;"></i>
-                    <div id="copy-toast" class="copy-toast">Skopiowano!</div>
+            <div class="side-menu-footer">
+                <div style="text-align: center; font-size: 10px; opacity: 0.5; margin-bottom: 10px; font-weight: 600; letter-spacing: 1px;">MADE WITH <i class="fa-solid fa-heart" style="color: #ef4444;"></i> BY KONRAD</div>
+                <div class="social-icons">
+                    <a href="https://www.instagram.com/transport_gdanski/" target="_blank" style="color: inherit;"><i class="fa-brands fa-instagram"></i></a>
+                    <a href="https://github.com/forumowskii" target="_blank" style="color: inherit;"><i class="fa-brands fa-github"></i></a>
+                    <div style="position: relative; display: inline-block;">
+                        <i class="fa-brands fa-discord" onclick="window.copyToClipboard('forumowski', this)" style="cursor: pointer;"></i>
+                        <div id="copy-toast" class="copy-toast">Skopiowano!</div>
+                    </div>
+                    <a href="https://mail.google.com/mail/?view=cm&fs=1&to=forumowskyyy@gmail.com" target="_blank" style="color: inherit;"><i class="fa-regular fa-envelope"></i></a>
                 </div>
-                <a href="https://mail.google.com/mail/?view=cm&fs=1&to=forumowskyyy@gmail.com" target="_blank" style="color: inherit;"><i class="fa-regular fa-envelope"></i></a>
             </div>
-        </div>
-    </nav>
+        </nav>
 
+        <!-- Przycisk hamburgera przeniesiony na koniec pliku, aby selektor CSS działał dla wszystkich modali -->
+        
     <div class="app-container">
         <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
             <h2 style="margin:0; font-weight: 800; padding-left: 50px; letter-spacing: -1px; font-size: 16px;">Regio Licznik</h2>
@@ -203,7 +205,80 @@
         </footer>
     </div>
 
-    <div id="map-modal" class="modal">
+    <div id="station-editor-modal" class="modal">
+        <!-- MENU BOCZNE EDYTORA (NOWE) -->
+        <div id="editor-side-menu" class="editor-side-panel">
+            <div class="modal-header">
+                <h3 style="margin:0">🛠️ Narzędzia Edytora</h3>
+                <div class="modal-menu-trigger" onclick="window.toggleEditorMenu()"><i class="fa-solid fa-xmark"></i></div>
+            </div>
+            <div class="editor-content">
+                <div class="card" style="background: rgba(255,255,255,0.05); padding: 15px;">
+                    <h4 style="margin:0 0 10px 0; font-size: 12px; color: var(--accent);">WIDOK I STYL</h4>
+                    <div style="display: grid; gap: 8px;">
+                        <button onclick="window.toggleGrid()" id="grid-btn" style="width:100%; font-size: 11px; background: #334155;">SIATKA: WYŁ</button>
+                        <div style="display: flex; flex-direction: column; gap: 5px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
+                            <span style="font-size: 9px; opacity: 0.6;">Rozmiar kropki:</span>
+                            <input type="range" min="2" max="30" value="6" step="1" oninput="window.updatePinSize(this.value)" style="height: 4px; padding: 0; cursor: pointer;">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 5px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
+                            <span style="font-size: 9px; opacity: 0.6;">Kolor kropki (Global):</span>
+                            <input type="color" value="#ffffff" oninput="window.updateGlobalPinColor(this.value)" style="height: 30px; padding: 2px; cursor: pointer;">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 5px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
+                            <span style="font-size: 9px; opacity: 0.6;">Grubość linii (Global):</span>
+                            <input type="range" min="1" max="20" value="4" step="0.5" oninput="window.updateGlobalLineWidth(this.value)" style="height: 4px; padding: 0; cursor: pointer;">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 5px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
+                            <span style="font-size: 9px; opacity: 0.6;">Grubość Heatmapy:</span>
+                            <input type="range" min="0.5" max="10" value="1.5" step="0.1" oninput="window.updateGlobalHeatWidth(this.value)" style="height: 4px; padding: 0; cursor: pointer;">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 5px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
+                            <span style="font-size: 9px; opacity: 0.6;">Obrót tekstu (Global):</span>
+                            <input type="range" min="-180" max="180" value="0" step="1" oninput="window.updateGlobalTextRotation(this.value)" style="height: 4px; padding: 0; cursor: pointer;">
+                        </div>
+                        <div style="background: rgba(129, 140, 248, 0.1); border: 1px solid var(--accent); border-radius: 12px; padding: 10px; margin: 5px 0;">
+                            <h4 style="margin:0 0 8px 0; font-size: 10px; color: var(--accent); text-align: center;">🛠️ LIVE EDYCJA NAZW</h4>
+                            <button id="toggle-label-edit-btn" onclick="window.toggleLabelEditMode()" style="width:100%; font-size: 10px; padding: 10px; background: #334155; border-radius: 8px;"><i class="fa-solid fa-arrows-up-down-left-right"></i> TRYB EDYCJI: WYŁ</button>
+                            <p style="font-size: 8px; opacity: 0.5; margin: 8px 0 0 0; line-height: 1.3; text-align: center;">Złap napis aby go przesunąć. Użyj <b>pokrętła</b> w prawym dolnym rogu, aby obracać wybrany tekst live.</p>
+                        </div>
+                        <button onclick="window.centerMapOnEditor()" style="width:100%; font-size: 11px; background: #334155;"><i class="fa-solid fa-compress"></i> WYŚRODKUJ</button>
+                    </div>
+                </div>
+
+                <div class="card" style="background: rgba(255,255,255,0.05); padding: 15px;">
+                    <h4 style="margin:0 0 10px 0; font-size: 12px; color: var(--success);">ŁĄCZENIE I LINIE</h4>
+                    <div style="display: grid; gap: 8px;">
+                        <div style="display: flex; flex-direction: column; gap: 5px; margin-bottom: 5px;">
+                            <span style="font-size: 9px; opacity: 0.6;">Typ nowej linii:</span>
+                            <select id="conn-type-select" style="padding: 8px; font-size: 11px; background: #1e293b; color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 5px;">
+                                <option value="regio">REGIO (Czerwony)</option>
+                                <option value="skm">SKM (Żółty)</option>
+                                <option value="ic">IC (Niebieski)</option>
+                            </select>
+                        </div>
+                        <button id="toggle-connection-mode-btn" onclick="window.toggleConnectionMode()" style="width:100%; font-size: 11px; background: #334155;">TRYB ŁĄCZENIA: WYŁ</button>
+                        <button id="toggle-curve-edit-btn" onclick="window.toggleCurveEditMode()" style="width:100%; font-size: 11px; background: #334155;">EDYCJA KRZYWYCH: WYŁ</button>
+                        <button onclick="window.clearAllConnectionsFromStation()" style="width:100%; font-size: 11px; background: var(--danger); opacity: 0.8;">USUŃ POŁĄCZENIA STACJI</button>
+                    </div>
+                </div>
+
+                <div class="card" style="background: rgba(255,255,255,0.05); padding: 15px;">
+                    <h4 style="margin:0 0 10px 0; font-size: 12px; color: var(--warning);">🎨 RYSOWNIK (FREE DRAW)</h4>
+                    <div style="display: grid; gap: 8px;">
+                        <button id="toggle-draw-mode-btn" onclick="window.toggleDrawMode()" style="width:100%; font-size: 11px; background: #334155;">TRYB RYSOWANIA: WYŁ</button>
+                        <button onclick="window.clearDrawTemp()" style="width:100%; font-size: 11px; background: var(--danger);">USUŃ OSTATNI PUNKT</button>
+                        <p style="font-size: 9px; opacity: 0.5; margin: 5px 0 0 0;">W trybie rysownika klikaj w dowolne miejsca na mapie, aby tworzyć swobodne linie.</p>
+                        
+                        <!-- Lista narysowanych linii -->
+                        <div id="admin-connections-list" style="margin-top: 10px; display: grid; gap: 5px; max-height: 150px; overflow-y: auto; padding-right: 5px;">
+                            <!-- Wypełniane przez JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="modal-header">
             <div style="display:flex; align-items:center; gap:15px;">
                 <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
@@ -212,37 +287,64 @@
             <div style="display:flex; gap:10px; align-items: center;">
                 <div style="display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 10px;">
                     <i class="fa-solid fa-magnifying-glass-plus" style="font-size: 10px; opacity: 0.6;"></i>
-                    <input type="range" min="0.1" max="5" step="0.05" id="map-zoom-slider" oninput="window.updateMapZoom(this.value)" style="width: 80px; height: 4px; padding: 0; cursor: pointer;">
+                    <input type="range" min="0.05" max="15" step="0.05" id="map-zoom-slider" oninput="window.updateMapZoom(this.value)" style="width: 80px; height: 4px; padding: 0; cursor: pointer;">
                 </div>
-                <div style="display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 10px;">
-                    <i class="fa-solid fa-circle-dot" style="font-size: 10px; opacity: 0.6;"></i>
-                    <input type="range" min="2" max="20" value="6" step="1" oninput="window.updatePinSize(this.value)" style="width: 60px; height: 4px; padding: 0; cursor: pointer;">
-                </div>
-                <button onclick="window.centerMapOnEditor()" style="width:auto; padding:8px 12px; background:#475569; font-size: 12px;"><i class="fa-solid fa-compress"></i></button>
-                <button onclick="window.toggleGrid()" id="grid-btn" style="width:auto; padding:8px 12px; background:#475569; font-size: 12px;">SIATKA: WYŁ</button>
+                <!-- Przycisk menu edytora przeniesiony na prawo -->
+                <div class="modal-menu-trigger" onclick="window.toggleEditorMenu()" style="background: var(--accent);"><i class="fa-solid fa-bars"></i></div>
             </div>
         </div>
         <div class="map-wrapper">
             <svg id="svg-map" viewBox="0 0 1200 1800"></svg>
+            
+            <!-- Pływający przycisk edycji nazw wewnątrz edytora dla wygody -->
+            <div id="floating-label-edit-btn" onclick="window.toggleLabelEditMode()" style="position: absolute; bottom: 20px; right: 20px; z-index: 1000; background: rgba(30, 41, 59, 0.7); width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); box-shadow: 0 8px 25px rgba(0,0,0,0.5); cursor: pointer; transition: 0.3s;">
+                <i class="fa-solid fa-arrows-up-down-left-right" style="font-size: 20px; color: white;"></i>
+            </div>
         </div>
-        <div class="card" style="margin-top:15px; background:rgba(0,0,0,0.4); padding: 15px;">
-            <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px;">
-                <input type="text" id="new-st-name" placeholder="Nazwa stacji" style="grid-column: span 3;">
-                <input type="number" id="new-st-km" placeholder="KM">
-                <input type="number" id="new-st-x" placeholder="Poz. X">
-                <input type="number" id="new-st-y" placeholder="Poz. Y">
-                <select id="new-st-label-pos" style="grid-column: span 1; font-size: 11px;">
-                    <option value="right" selected>Bok (Prawy)</option>
-                    <option value="left">Bok (Lewy)</option>
-                    <option value="top">Góra</option>
-                    <option value="bottom">Dół</option>
-                    <option value="top-right">Skos (Góra-Prawo)</option>
-                    <option value="top-left">Skos (Góra-Lewo)</option>
-                    <option value="bottom-right">Skos (Dół-Prawo)</option>
-                    <option value="bottom-left">Skos (Dół-Lewo)</option>
-                </select>
-                <input type="text" id="new-st-parent" placeholder="Stacja nadrzędna (opcjonalnie)" style="grid-column: span 2;">
-                <button onclick="window.saveNewStation()" style="background:var(--success);">DODAJ</button>
+        <div class="card" style="margin-top:15px; background:rgba(0,0,0,0.4); padding: 15px; overflow-x: auto;">
+            <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; min-width: 500px;">
+                <!-- RZĄD 1 -->
+                <div>
+                    <span style="font-size: 9px; opacity: 0.5;">Nazwa:</span>
+                    <input type="text" id="new-st-name" placeholder="STACJA" style="padding: 10px; font-size: 13px;">
+                </div>
+                <div>
+                    <span style="font-size: 9px; opacity: 0.5;">KM:</span>
+                    <input type="number" id="new-st-km" placeholder="0" style="padding: 10px; font-size: 13px;">
+                </div>
+                <div>
+                    <span style="font-size: 9px; opacity: 0.5;">Nadrzędne (Enter by zatwierdzić):</span>
+                    <div id="new-st-parent-tags" class="tags-input-container">
+                        <input type="text" id="new-st-parent-input" placeholder="np. slupsk">
+                    </div>
+                </div>
+                
+                <!-- RZĄD 2 -->
+                <div>
+                    <div style="display: flex; gap: 5px;">
+                        <div style="flex: 1;">
+                            <span style="font-size: 9px; opacity: 0.5;">X:</span>
+                            <input type="number" id="new-st-x" placeholder="X" style="padding: 10px; font-size: 13px;">
+                        </div>
+                        <div style="flex: 1;">
+                            <span style="font-size: 9px; opacity: 0.5;">Y:</span>
+                            <input type="number" id="new-st-y" placeholder="Y" style="padding: 10px; font-size: 13px;">
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <span style="font-size: 9px; opacity: 0.5;">Napis:</span>
+                    <select id="new-st-label-pos" style="padding: 10px; font-size: 12px; height: 42px;">
+                        <option value="right">Prawo</option>
+                        <option value="left">Lewo</option>
+                        <option value="top">Góra</option>
+                        <option value="bottom">Dół</option>
+                        <option value="center">Środek</option>
+                    </select>
+                </div>
+                <div style="display: flex; align-items: flex-end;">
+                    <button onclick="window.saveNewStation()" style="height: 42px; font-size: 10px; padding: 0; background: var(--success); width: 100%;">DODAJ</button>
+                </div>
             </div>
         </div>
     </div>
@@ -256,23 +358,28 @@
             <div style="display:flex; gap:10px; align-items: center;">
                 <div style="display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 10px;">
                     <i class="fa-solid fa-magnifying-glass-plus" style="font-size: 10px; opacity: 0.6;"></i>
-                    <input type="range" min="0.1" max="5" step="0.05" id="heat-zoom-slider" oninput="window.updateHeatZoom(this.value)" style="width: 80px; height: 4px; padding: 0; cursor: pointer;">
-                </div>
-                <div style="display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 10px;">
-                    <i class="fa-solid fa-circle-dot" style="font-size: 10px; opacity: 0.6;"></i>
-                    <input type="range" min="2" max="20" value="6" step="1" oninput="window.updatePinSize(this.value)" style="width: 60px; height: 4px; padding: 0; cursor: pointer;">
+                    <input type="range" min="0.05" max="15" step="0.05" id="heat-zoom-slider" oninput="window.updateHeatZoom(this.value)" style="width: 80px; height: 4px; padding: 0; cursor: pointer;">
                 </div>
                 <button onclick="window.centerHeatmap()" style="width:auto; padding:8px 12px; background:#475569; font-size: 12px;"><i class="fa-solid fa-compress"></i></button>
             </div>
         </div>
         <div class="map-wrapper">
-            <svg id="svg-heatmap" viewBox="0 0 400 600"></svg>
+            <svg id="svg-heatmap" viewBox="0 0 1200 1800">
+                <defs>
+                    <filter id="heat-glow" x="-20%" y="-20%" width="140%" height="140%">
+                        <feGaussianBlur stdDeviation="1" result="blur" />
+                        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    </filter>
+                </defs>
+            </svg>
         </div>
         <div style="display: flex; justify-content: center; gap: 15px; margin-top: 20px; font-size: 11px; font-weight: 800;">
-            <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#475569; border-radius:3px;"></div> 0</div>
-            <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#facc15; border-radius:3px;"></div> 1-4</div>
-            <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#f97316; border-radius:3px;"></div> 5-19</div>
-            <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#ef4444; border-radius:3px;"></div> 20+</div>
+            <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#1e293b; border-radius:3px; border: 1px solid rgba(255,255,255,0.1);"></div> 0</div>
+            <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#fbbf24; border-radius:3px;"></div> 1</div>
+            <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#f59e0b; border-radius:3px;"></div> 2-4</div>
+            <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#ea580c; border-radius:3px;"></div> 5-9</div>
+            <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#dc2626; border-radius:3px;"></div> 10-19</div>
+            <div style="display:flex; align-items:center; gap:5px;"><div style="width:12px; height:12px; background:#7f1d1d; border-radius:3px;"></div> 20+</div>
         </div>
 
         <div class="card" style="margin-top: 20px; background: rgba(255, 255, 255, 0.05);">
@@ -410,25 +517,30 @@
             </div>
         </div>
         
-        <div style="display: grid; gap: 20px; overflow-y: auto; padding-bottom: 30px;">
-            <div class="card" style="background: rgba(250, 204, 21, 0.1); border-color: var(--warning);">
-                <h4 style="margin: 0 0 10px 0; color: var(--warning); font-size: 13px; text-transform: uppercase;">🚂 TOP 3 JEDNOSTKI</h4>
-                <div id="top-units-list" style="display: grid; gap: 8px;"></div>
+        <div class="stats-grid">
+            <div class="card" style="background: rgba(0,0,0,0.3); border-left: 3px solid var(--warning);">
+                <h4 style="margin:0 0 10px 0; color:var(--warning); font-size: 11px; letter-spacing: 1px;">� TOP 3 SERIE</h4>
+                <div id="top-series-list" style="display: grid; gap: 8px;"></div>
             </div>
 
-            <div class="card" style="background: rgba(129, 140, 248, 0.1); border-color: var(--accent);">
-                <h4 style="margin: 0 0 10px 0; color: var(--accent); font-size: 13px; text-transform: uppercase;">🛤️ TOP 3 TRASY</h4>
+            <div class="card" style="background: rgba(0,0,0,0.3); border-left: 3px solid #38bdf8;">
+                <h4 style="margin:0 0 10px 0; color:#38bdf8; font-size: 11px; letter-spacing: 1px;">�️ TOP TRASY</h4>
                 <div id="top-routes-list" style="display: grid; gap: 8px;"></div>
             </div>
 
-            <div class="card" style="background: rgba(56, 189, 248, 0.1); border-color: #38bdf8;">
-                <h4 style="margin: 0 0 10px 0; color: #38bdf8; font-size: 13px; text-transform: uppercase;">🏙️ ODWIEDZONE MIASTA</h4>
+            <div class="card" style="background: rgba(0,0,0,0.3); border-left: 3px solid #f472b6;">
+                <h4 style="margin:0 0 10px 0; color:#f472b6; font-size: 11px; letter-spacing: 1px;">🏙️ TOP MIASTA</h4>
                 <div id="top-cities-list" style="display: grid; gap: 8px;"></div>
             </div>
 
-            <div class="card" style="background: rgba(239, 68, 68, 0.1); border-color: var(--danger);">
-                <h4 style="margin: 0 0 10px 0; color: var(--danger); font-size: 13px; text-transform: uppercase;">💰 NAJDROŻSZY I NAJTAŃSZY</h4>
+            <div class="card" style="background: rgba(0,0,0,0.3); border-left: 3px solid var(--accent);">
+                <h4 style="margin:0 0 10px 0; color:var(--accent); font-size: 11px; letter-spacing: 1px;">📊 REKORDY CEN</h4>
                 <div id="price-ranking-list" style="display: grid; gap: 8px;"></div>
+            </div>
+
+            <div class="card" style="background: rgba(0,0,0,0.3); border-left: 3px solid var(--success); grid-column: 1 / -1;">
+                <h4 style="margin:0 0 10px 0; color:var(--success); font-size: 11px; letter-spacing: 1px;">� TOP JEDNOSTKI (PEŁNE)</h4>
+                <div id="top-units-list" style="display: grid; gap: 8px;"></div>
             </div>
         </div>
     </div>
@@ -470,7 +582,20 @@
                     </div>
                     <div class="secret-gadget" style="flex-direction: column; align-items: stretch; gap: 10px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>🚧 Tryb Konserwacji (Blokada Wejścia)</span>
+                            <span>� Blokada Funkcji KM</span>
+                            <button id="calc-lock-toggle-btn" onclick="window.toggleCalcLock()" class="gadget-btn" style="background: var(--danger); width: auto;">WYŁĄCZONA</button>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                            <span style="font-size: 10px; opacity: 0.6;">Komunikat blokady:</span>
+                            <div style="display: flex; gap: 5px;">
+                                <input type="text" id="calc-lock-msg-input" placeholder="Powód blokady..." style="padding: 8px; font-size: 11px; background: rgba(0,0,0,0.2); flex: 1;">
+                                <button onclick="window.saveCalcLockMsg()" style="width: auto; padding: 0 15px; font-size: 10px; background: var(--success);">ZAPISZ</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="secret-gadget" style="flex-direction: column; align-items: stretch; gap: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>� Tryb Konserwacji (Blokada Wejścia)</span>
                             <button id="maintenance-toggle-btn" onclick="window.toggleMaintenanceMode()" class="gadget-btn" style="background: var(--danger);">WYŁĄCZONY</button>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
@@ -533,7 +658,7 @@
                     <button onclick="window.saveMapBgSettings()" style="background: var(--success); font-size: 10px; padding: 8px; margin-top: 5px;">ZAPISZ SKALOWANIE</button>
                 </div>
                 <input type="text" id="admin-station-search" placeholder="🔍 Szukaj stacji..." style="margin-bottom: 10px; padding: 8px; font-size: 12px; background: rgba(0,0,0,0.2);">
-                <div id="admin-stations-list" style="display: grid; gap: 10px; max-height: 250px; overflow-y: auto;">
+                <div id="admin-stations-list" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 250px; overflow-y: auto;">
                     <!-- Lista stacji do edycji/usuwania -->
                 </div>
             </div>
@@ -541,7 +666,7 @@
             <div class="card" style="background: rgba(0,0,0,0.3);">
                 <h4 style="margin: 0 0 10px 0; color: #f87171;">🚂 ZARZĄDZANIE PRZEJAZDAMI</h4>
                 <input type="text" id="admin-trip-search" placeholder="🔍 Szukaj przejazdu (stacja, nr, data)..." style="margin-bottom: 10px; padding: 8px; font-size: 12px; background: rgba(0,0,0,0.2);">
-                <div id="admin-trips-list" style="display: grid; gap: 10px; max-height: 250px; overflow-y: auto;">
+                <div id="admin-trips-list" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 250px; overflow-y: auto;">
                     <!-- Lista przejazdów do edycji/usuwania -->
                 </div>
             </div>
@@ -589,10 +714,10 @@
                     <span style="font-size: 11px; opacity: 0.6;">Cena (zł):</span>
                     <input type="text" id="ticket-price-input" placeholder="np. 153,00" style="background: #fff; color: #000;">
 
-                    <span style="font-size: 11px; opacity: 0.6;">Treść kodu QR:</span>
-                    <input type="text" id="custom-qr-data" placeholder="Treść kodu QR..." style="background: #fff; color: #000;">
+                    <span style="font-size: 11px; opacity: 0.6;">Treść kodu (Aztec/QR):</span>
+                    <textarea id="custom-qr-data" placeholder="Treść kodu Aztec..." style="width: 100%; height: 80px; padding: 10px; background: #fff; border: 1px solid #ccc; border-radius: 5px; color: #000; font-size: 11px; font-family: monospace; resize: vertical;"></textarea>
                     
-                    <button onclick="window.saveTicketData()" style="background: var(--success); font-size: 12px; padding: 10px; margin-top: 5px;">ZAPISZ DANE BILETU</button>
+                    <button onclick="window.saveTicketData()" style="background: var(--success); font-size: 12px; padding: 10px; margin-top: 5px; font-weight: 800;">ZAPISZ DANE BILETU</button>
                 </div>
             </div>
             
@@ -612,13 +737,15 @@
 
     </div> <!-- KONIEC main-app-content -->
 
+    <div class="menu-trigger" onclick="window.toggleMenu()">☰</div>
+
     <div id="toast-container"></div>
 
     <!-- UNIWERSALNY MODAL EDYCJI -->
     <div id="universal-edit-modal" class="modal" style="z-index: 50000; background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); display: none; align-items: center; justify-content: center;">
         <div class="card" style="width: 90%; max-width: 400px; background: #1e293b; border: 1px solid var(--accent);">
             <h3 id="edit-modal-title" style="margin-top: 0; color: var(--accent); font-size: 18px;">Edycja</h3>
-            <div id="edit-modal-fields" style="display: grid; gap: 15px; margin-bottom: 20px;">
+            <div id="edit-modal-fields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
                 <!-- Pola będą generowane dynamicznie -->
             </div>
             <div style="display: flex; gap: 10px;">
@@ -630,6 +757,34 @@
 
     <!-- MENU AKCJI -->
     <div id="action-menu" class="action-menu"></div>
+
+    <!-- PANEL INTERAKTYWNEJ EDYCJI -->
+    <div id="interactive-editor-gui" class="interactive-editor-gui">
+        <div id="knob-label-name" class="knob-label-name">Wybierz napis</div>
+        
+        <div class="knobs-wrapper">
+            <!-- POKRĘTŁO OBROTU -->
+            <div class="knob-group">
+                <div id="knob-rotation-display" class="knob-value-display">0°</div>
+                <div id="knob-rotation-dial" class="knob-dial">
+                    <div class="knob-marker"></div>
+                </div>
+                <div class="knob-title">OBRÓT</div>
+            </div>
+
+            <!-- POKRĘTŁO ROZMIARU -->
+            <div class="knob-group">
+                <div class="knob-value-display" style="display: flex; align-items: center; gap: 5px; padding-right: 5px;">
+                    <input type="number" id="knob-size-input" value="14" min="8" max="60" style="width: 40px; background: transparent; border: none; padding: 0; color: white; font-weight: 800; font-family: monospace; text-align: right; font-size: 13px;">
+                    <span>px</span>
+                </div>
+                <div id="knob-size-dial" class="knob-dial size-dial">
+                    <div class="knob-marker" style="background: var(--warning); box-shadow: 0 0 10px var(--warning);"></div>
+                </div>
+                <div class="knob-title">ROZMIAR</div>
+            </div>
+        </div>
+    </div>
 
     <!-- MODAL POTWIERDZENIA USUNIĘCIA -->
     <div id="delete-confirm-modal" class="modal" style="z-index: 60000; background: rgba(0,0,0,0.9); backdrop-filter: blur(15px); display: none; align-items: center; justify-content: center;">
