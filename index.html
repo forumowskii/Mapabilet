@@ -24,6 +24,24 @@
 
     <div id="coord-info">X: 0, Y: 0</div>
 
+    <!-- EKRAN OFFLINE -->
+    <div id="offline-overlay" class="offline-overlay">
+        <div class="offline-sky-container" id="offline-sky"></div>
+        <div class="offline-content">
+            <i class="fa-solid fa-wifi-slash offline-icon"></i>
+            <h1 style="font-size: 32px; font-weight: 800; margin-bottom: 10px;">BRAK INTERNETU</h1>
+            <p style="opacity: 0.7; font-size: 16px; max-width: 300px; margin: 0 auto 30px;">Przeglądasz stronę w trybie offline. Niektóre funkcje (np. statystyki live) mogą być niedostępne.</p>
+            <div class="offline-badge">
+                <span class="offline-dot"></span>
+                <span>TRYB OFFLINE</span>
+            </div>
+            <button onclick="window.location.reload()" style="margin-top: 40px; width: 100%; max-width: 320px; padding: 18px 30px; border-radius: 15px; background: var(--accent); color: white; font-size: 18px; font-weight: 800; border: none; box-shadow: 0 10px 25px rgba(129, 140, 248, 0.4); cursor: pointer; transition: 0.3s;">
+                <i class="fa-solid fa-rotate-right" style="margin-right: 10px;"></i> ODŚWIEŻ STRONĘ
+            </button>
+            <p style="margin-top: 50px; font-size: 12px; opacity: 0.4; font-weight: 600; letter-spacing: 1px;">Copyright © 2026 by Albatrossova</p>
+        </div>
+    </div>
+
     <!-- NAKŁADKA KONSERWACYJNA -->
     <div id="maintenance-overlay" class="maintenance-overlay">
         <div class="caution-tape top"></div>
@@ -38,8 +56,8 @@
 
             <!-- STATUS SYSTEMU NA KONSERWACJI -->
             <div class="footer-online" style="margin-top: 20px; opacity: 1; font-size: 14px; background: rgba(0,0,0,0.3); padding: 10px 20px; border-radius: 50px;">
-                <span class="online-dot"></span>
-                <span>ONLINE</span>
+                <span class="online-dot" id="m-online-dot"></span>
+                <span id="m-online-text">ONLINE</span>
             </div>
 
             <!-- STOPER KONSERWACJI -->
@@ -138,9 +156,11 @@
         <!-- Przycisk hamburgera przeniesiony na koniec pliku, aby selektor CSS działał dla wszystkich modali -->
         
     <div class="app-container">
+        <div class="offline-sky-container" id="main-sky"></div>
         <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
             <h2 style="margin:0; font-weight: 800; padding-left: 50px; letter-spacing: -1px; font-size: 16px;">Regio Licznik</h2>
             <div style="display: flex; gap: 8px; align-items: center;">
+                <div id="offline-badge-header" style="display: none; background: var(--danger); color: white; padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);">OFFLINE</div>
                 <div id="station-count-badge" style="background: var(--accent); padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(129, 140, 248, 0.3);">STACJE: 0</div>
             </div>
         </header>
@@ -198,8 +218,8 @@
 
         <footer>
             <div class="footer-online">
-                <span class="online-dot"></span>
-                <span>ONLINE</span>
+                <span class="online-dot" id="global-online-dot"></span>
+                <span id="global-online-text">ONLINE</span>
             </div>
             <div>copyright by albatrosova 2026</div>
         </footer>
@@ -538,6 +558,11 @@
                 <div id="price-ranking-list" style="display: grid; gap: 8px;"></div>
             </div>
 
+            <div class="card" style="background: rgba(0,0,0,0.3); border-left: 3px solid #10b981;">
+                <h4 style="margin:0 0 10px 0; color:#10b981; font-size: 11px; letter-spacing: 1px;">🚆 TOP PRZEWOŹNICY</h4>
+                <div id="top-carriers-list" style="display: grid; gap: 8px;"></div>
+            </div>
+
             <div class="card" style="background: rgba(0,0,0,0.3); border-left: 3px solid var(--success); grid-column: 1 / -1;">
                 <h4 style="margin:0 0 10px 0; color:var(--success); font-size: 11px; letter-spacing: 1px;">� TOP JEDNOSTKI (PEŁNE)</h4>
                 <div id="top-units-list" style="display: grid; gap: 8px;"></div>
@@ -580,9 +605,20 @@
                         <span>🌈 Tęczowy Tryb (Cała Strona)</span>
                         <button id="rainbow-mode-btn" onclick="window.toggleRainbowMode()" class="gadget-btn">WŁĄCZ 🌈</button>
                     </div>
+                    <div class="secret-gadget" style="flex-direction: column; align-items: stretch; gap: 10px; border: 1px solid rgba(255,255,255,0.1); padding: 10px; border-radius: 12px; background: rgba(0,0,0,0.2);">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 700; color: #38bdf8;"><i class="fa-solid fa-cloud-arrow-down"></i> Status Offline (Cache)</span>
+                            <div id="sw-status-badge" style="font-size: 10px; padding: 4px 10px; border-radius: 20px; background: #475569;">SPRAWDZANIE...</div>
+                        </div>
+                        <p style="font-size: 9px; opacity: 0.6; margin: 0;">Status pobrania plików aplikacji do pamięci urządzenia (Service Worker).</p>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <button onclick="window.simulateOfflineMode()" class="gadget-btn" style="background: #334155; border: 1px solid #475569; font-size: 9px;">SYMULUJ OFFLINE</button>
+                            <button onclick="window.clearAppCache()" class="gadget-btn" style="background: #991b1b; border: 1px solid #b91c1c; font-size: 9px;">WYCZYŚĆ CACHE</button>
+                        </div>
+                    </div>
                     <div class="secret-gadget" style="flex-direction: column; align-items: stretch; gap: 10px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>� Blokada Funkcji KM</span>
+                            <span>🔒 Blokada Funkcji KM</span>
                             <button id="calc-lock-toggle-btn" onclick="window.toggleCalcLock()" class="gadget-btn" style="background: var(--danger); width: auto;">WYŁĄCZONA</button>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
@@ -732,6 +768,22 @@
                     <!-- Logi będą tu wpadać -->
                 </div>
             </div>
+
+            <!-- EKSPORT DANYCH NA SAMYM DOLE -->
+            <div class="card" style="background: rgba(15, 23, 42, 0.9); border: 2px solid var(--accent); grid-column: 1 / -1; margin-top: 20px;">
+                <h4 style="margin: 0 0 15px 0; color: var(--accent); text-align: center; font-size: 16px; letter-spacing: 1px;"><i class="fa-solid fa-file-export"></i> EKSPORT KOŃCOWY DANYCH</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <button onclick="window.exportData('json')" style="background: var(--accent); padding: 15px; font-weight: 800; font-size: 14px; border-radius: 12px;">
+                        <i class="fa-solid fa-code"></i> POBIERZ JSON
+                    </button>
+                    <button onclick="window.exportData('csv')" style="background: #475569; padding: 15px; font-weight: 800; font-size: 14px; border-radius: 12px;">
+                        <i class="fa-solid fa-file-csv"></i> POBIERZ CSV
+                    </button>
+                </div>
+                <div style="text-align: center; margin-top: 15px; font-size: 11px; opacity: 0.6; font-weight: 600;">
+                    OSTATNI EKSPORT: <span id="last-export-date">NIGDY</span>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -765,7 +817,10 @@
         <div class="knobs-wrapper">
             <!-- POKRĘTŁO OBROTU -->
             <div class="knob-group">
-                <div id="knob-rotation-display" class="knob-value-display">0°</div>
+                <div class="knob-value-display" style="display: flex; align-items: center; gap: 5px; padding-right: 5px;">
+                    <input type="number" id="knob-rotation-input" value="0" style="width: 40px; background: transparent; border: none; padding: 0; color: white; font-weight: 800; font-family: monospace; text-align: right; font-size: 13px;">
+                    <span>°</span>
+                </div>
                 <div id="knob-rotation-dial" class="knob-dial">
                     <div class="knob-marker"></div>
                 </div>

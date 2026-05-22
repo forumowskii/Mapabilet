@@ -253,6 +253,7 @@ window.sortHistory = (key) => {
 let gridActive = false;
 let busClicks = 0;
 let isAdminUnlocked = false;
+let isSessionAuthenticated = false;
 let storedPassword = null;
 let isDeveloperModeActive = false;
 let isDrawMode = false;
@@ -317,7 +318,7 @@ window.toggleLabelEditMode = () => {
 function initEditorKnobs() {
     const rotDial = document.getElementById('knob-rotation-dial');
     const sizeDial = document.getElementById('knob-size-dial');
-    const rotDisplay = document.getElementById('knob-rotation-display');
+    const rotInput = document.getElementById('knob-rotation-input');
     const sizeInput = document.getElementById('knob-size-input');
     
     let isDraggingRot = false;
@@ -411,7 +412,7 @@ function initEditorKnobs() {
 
     const updateRotationLive = (deg) => {
         rotDial.style.transform = `rotate(${deg}deg)`;
-        rotDisplay.innerText = `${deg}°`;
+        if (rotInput) rotInput.value = deg;
         if (selectedLabelForRotation && selectedLabelForRotation.element) {
             const s = selectedLabelForRotation.data;
             const x = s.x + (selectedLabelForRotation.finalDx || 0);
@@ -424,9 +425,32 @@ function initEditorKnobs() {
         sizeDial.style.transform = `rotate(${angle}deg)`;
         sizeInput.value = size;
         if (selectedLabelForRotation && selectedLabelForRotation.element) {
-            selectedLabelForRotation.element.setAttribute("font-size", `${size}px`);
+            const textElem = selectedLabelForRotation.element;
+            textElem.setAttribute("font-size", `${size}px`);
+            // Aktualizuj tspan dla wielowierszowych
+            textElem.querySelectorAll('tspan').forEach((t, i) => {
+                t.setAttribute("font-size", `${size}px`);
+                // Odstęp między wierszami (dy) musi być aktualizowany przy zmianie font-size
+                if (i > 0) t.setAttribute("dy", `${size * 1.1}px`);
+            });
         }
     };
+
+    // Ręczna zmiana obrotu
+    if (rotInput) {
+        rotInput.addEventListener('input', (e) => {
+            if (!selectedLabelForRotation) return;
+            let deg = parseInt(e.target.value) || 0;
+            currentRotation = deg;
+            updateRotationLive(deg);
+            
+            clearTimeout(rotInput._timer);
+            rotInput._timer = setTimeout(() => {
+                const name = selectedLabelForRotation.name;
+                update(ref(db, `stats/stacje_siec/${name}`), { rotation: currentRotation });
+            }, 500);
+        });
+    }
 
     // Ręczna zmiana rozmiaru
     sizeInput.addEventListener('input', (e) => {
@@ -460,14 +484,14 @@ function initEditorKnobs() {
         
         currentRotation = data.rotation || 0;
         rotDial.style.transform = `rotate(${currentRotation}deg)`;
-        rotDisplay.innerText = `${currentRotation}°`;
+        if (rotInput) rotInput.value = currentRotation;
 
         currentFontSize = data.fontSize || 14;
         const sizeAngle = (currentFontSize - 20) * 12;
         sizeDial.style.transform = `rotate(${sizeAngle}deg)`;
         sizeInput.value = currentFontSize;
 
-        document.getElementById('knob-label-name').innerText = name.toUpperCase();
+        document.getElementById('knob-label-name').innerText = name.toUpperCase().replace('|', ' / ');
         document.querySelectorAll('text').forEach(t => t.style.filter = "none");
         element.style.filter = "drop-shadow(0 0 5px var(--accent))";
     };
@@ -934,6 +958,11 @@ onValue(configRef, (s) => {
         maintenanceEndTime = config.maintenanceEndTime || null;
         stationEditorBg = config.stationEditorBg || null;
         isMapVisible = config.isMapVisible !== undefined ? config.isMapVisible : true;
+
+        if (config.lastExportDate) {
+            const display = document.getElementById('last-export-date');
+            if (display) display.innerText = config.lastExportDate;
+        }
         showEditorBg = config.showEditorBg !== undefined ? config.showEditorBg : true;
         isCalcDisabled = config.isCalcDisabled || false;
         calcDisabledMsg = config.calcDisabledMsg || "Funkcja tymczasowo niedostępna.";
@@ -1051,6 +1080,95 @@ function updateAdminPanelFields() {
     if (mapH) mapH.value = mapBgSettings.h;
     if (mapOffX) mapOffX.value = mapBgSettings.offX;
     if (mapOffY) mapOffY.value = mapBgSettings.offY;
+
+    // Status Service Workera (Offline Cache)
+    const swBadge = document.getElementById('sw-status-badge');
+    if (swBadge) {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistration().then(reg => {
+                if (reg && reg.active) {
+                    swBadge.innerText = "POBRANO ✅";
+                    swBadge.style.background = "var(--success)";
+                } else {
+                    swBadge.innerText = "NIEPOBRANO ❌";
+                    swBadge.style.background = "var(--danger)";
+                }
+            });
+        } else {
+            swBadge.innerText = "NIEWSPIERANE ⚠️";
+            swBadge.style.background = "#475569";
+        }
+    }
+}
+
+window.simulateOfflineMode = () => {
+    const offlineOverlay = document.getElementById('offline-overlay');
+    if (offlineOverlay) {
+        offlineOverlay.classList.add('active');
+        initSky('offline-sky');
+        window.showToast("Symulacja trybu offline aktywna (tylko wizualnie)", "warning");
+        window.addConsoleLog("Uruchomiono symulację trybu offline", "info");
+    }
+};
+
+window.clearAppCache = () => {
+    if ('caches' in window) {
+        caches.keys().then(names => {
+            for (let name of names) caches.delete(name);
+            window.showToast("Cache aplikacji wyczyszczony. Odśwież stronę.", "success");
+            window.addConsoleLog("Cache aplikacji wyczyszczony", "warning");
+        });
+    }
+};
+
+window.exportData = (format) => {
+    const data = {
+        stations: stations,
+        connections: connectionsData,
+        trips: tripsData,
+        exportDate: new Date().toISOString()
+    };
+
+    let blob, filename;
+    if (format === 'json') {
+        blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        filename = `regio-data-${new Date().toLocaleDateString()}.json`;
+    } else {
+        // Uproszczony eksport do CSV (lista stacji)
+        let csv = "NAZWA,KM,X,Y,RODZICE\n";
+        Object.keys(stations).forEach(k => {
+            const s = stations[k];
+            csv += `${k.toUpperCase()},${s.km || 0},${s.x},${s.y},"${s.parent || ''}"\n`;
+        });
+        blob = new Blob([csv], { type: 'text/csv' });
+        filename = `regio-stations-${new Date().toLocaleDateString()}.csv`;
+    }
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    
+    // Zapisz datę ostatniego eksportu
+    const now = new Date().toLocaleString();
+    localStorage.setItem('last_export_date', now);
+    
+    // Zapisz do Firebase
+    set(ref(db, 'stats/config/lastExportDate'), now);
+
+    const display = document.getElementById('last-export-date');
+    if (display) display.innerText = now;
+
+    window.showToast(`Dane wyeksportowane do ${format.toUpperCase()}`, "success");
+};
+
+// Funkcja wczytująca datę eksportu na starcie
+function loadLastExportDate() {
+    const last = localStorage.getItem('last_export_date');
+    const display = document.getElementById('last-export-date');
+    if (display && last) display.innerText = last;
 }
 
 function updateCalcBtnUI() {
@@ -1460,7 +1578,7 @@ window.editStationName = (key) => {
     ];
 
     window.openUniversalEdit("Edytuj Stację", [
-        { id: 'name', label: 'Nazwa stacji (klucz)', value: key.toUpperCase() },
+        { id: 'name', label: 'Nazwa stacji (użyj | dla nowej linii)', value: key.toUpperCase() },
         { id: 'km', label: 'Kilometry (KM)', value: oldData.km, type: 'number' },
         { id: 'x', label: 'Pozycja X', value: oldData.x, type: 'number' },
         { id: 'y', label: 'Pozycja Y', value: oldData.y, type: 'number' },
@@ -1757,7 +1875,22 @@ function updateLeaderboards() {
     // 4. NAJDROŻSZY I NAJTAŃSZY
     renderPriceRanking();
 
-    // 5. TOP UNITS (na sam dół)
+    // 5. TOP CARRIERS (na podstawie nr pociągu)
+    const carrierCounts = {};
+    tripsData.forEach(t => {
+        if (t.nr) {
+            const firstPart = t.nr.trim().split(' ')[0].toUpperCase();
+            let carrier = "INNY";
+            if (firstPart.startsWith('S')) carrier = "SKM TRÓJMIASTO";
+            else if (firstPart.startsWith('IC') || firstPart.startsWith('EIP') || firstPart.startsWith('EIC') || firstPart.startsWith('TLK')) carrier = "PKP INTERCITY";
+            else if (firstPart.startsWith('R') || firstPart.startsWith('KW') || firstPart.startsWith('KD')) carrier = "POLREGIO";
+            
+            carrierCounts[carrier] = (carrierCounts[carrier] || 0) + 1;
+        }
+    });
+    renderTopList('top-carriers-list', carrierCounts, 'x');
+
+    // 6. TOP UNITS (na sam dół)
     const unitCounts = {};
     tripsData.forEach(t => {
         if (t.unit) {
@@ -2548,7 +2681,7 @@ function renderMapElements(svgId, state, mode = 'base') {
                 txt.setAttribute("transform", `rotate(${rotation} ${s.x + finalDx} ${s.y + finalDy})`);
             }
 
-            txt.setAttribute("fill", mode === 'base' ? "#fff" : "#cbd5e1"); 
+            txt.setAttribute("fill", s.color || (mode === 'base' ? "#fff" : "#cbd5e1")); 
             
             // Stała wielkość czcionki w jednostkach SVG
             let baseFS = s.fontSize || 13;
@@ -2664,13 +2797,141 @@ function renderMapElements(svgId, state, mode = 'base') {
                 txt.style.pointerEvents = "none";
             }
 
-            txt.textContent = name.toUpperCase();
+            // Obsługa nazw wielowierszowych (separator |)
+            const lines = name.toUpperCase().split('|');
+            if (lines.length > 1) {
+                lines.forEach((lineText, i) => {
+                    const tspan = document.createElementNS("http://www.w3.org/2000/svg", "tspan");
+                    tspan.textContent = lineText.trim();
+                    tspan.setAttribute("x", s.x + finalDx);
+                    // Odstęp między wierszami (line-height) zależny od wielkości czcionki
+                    tspan.setAttribute("dy", i === 0 ? 0 : (baseFS * 1.1));
+                    tspan.setAttribute("font-size", baseFS + "px");
+                    txt.appendChild(tspan);
+                });
+                
+                // Centrowanie pionowe dla wielu linii
+                if (lines.length > 1) {
+                    const totalHeight = (lines.length - 1) * (baseFS * 1.1);
+                    const currentY = parseFloat(txt.getAttribute("y"));
+                    txt.setAttribute("y", currentY - totalHeight / 2);
+                }
+            } else {
+                txt.textContent = name.toUpperCase();
+            }
+            
             g.appendChild(txt);
         }
     });
 
     svg.appendChild(g);
 }
+
+// --- OBSŁUGA TRYBU OFFLINE ---
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then((reg) => {
+            console.log('Service Worker zarejestrowany:', reg.scope);
+        }).catch((err) => {
+            console.warn('Rejestracja Service Workera nieudana:', err);
+        });
+    });
+}
+
+function updateOnlineStatus() {
+    const offlineOverlay = document.getElementById('offline-overlay');
+    const headerBadge = document.getElementById('offline-badge-header');
+    const mDot = document.getElementById('m-online-dot');
+    const mText = document.getElementById('m-online-text');
+
+    if (!navigator.onLine) {
+        if (offlineOverlay) {
+            offlineOverlay.classList.add('active');
+            initSky('offline-sky');
+        }
+        if (headerBadge) headerBadge.style.display = 'block';
+        if (mDot) {
+            mDot.style.background = "#94a3b8";
+            mDot.style.boxShadow = "0 0 10px #94a3b8";
+        }
+        if (mText) mText.innerText = "OFFLINE";
+    } else {
+        if (offlineOverlay) {
+            offlineOverlay.classList.remove('active');
+            stopOfflineSky();
+        }
+        if (headerBadge) headerBadge.style.display = 'none';
+        if (mDot) {
+            mDot.style.background = "var(--success)";
+            mDot.style.boxShadow = "0 0 10px var(--success)";
+        }
+        if (mText) mText.innerText = "ONLINE";
+    }
+}
+
+let offlineSkyInterval = null;
+
+function createShootingStar(containerId = 'offline-sky') {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    const star = document.createElement('div');
+    star.className = 'shooting-star';
+    
+    // Losuj pozycję startową (z prawej strony)
+    const startX = 60 + Math.random() * 40; // 60-100% szerokości
+    const startY = Math.random() * 40; // 0-40% wysokości
+    
+    star.style.left = `${startX}%`;
+    star.style.top = `${startY}%`;
+    star.style.setProperty('--duration', `${2 + Math.random() * 2}s`); // Wolniejszy przelot
+    
+    container.appendChild(star);
+    setTimeout(() => star.remove(), 4000);
+}
+
+let mainSkyInterval = null;
+function initSky(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container || container.children.length > 0) return;
+
+    // Generuj stałe gwiazdy
+    for (let i = 0; i < 150; i++) {
+        const star = document.createElement('div');
+        star.className = 'star';
+        const size = Math.random() * 3;
+        star.style.width = `${size}px`;
+        star.style.height = `${size}px`;
+        star.style.left = `${Math.random() * 100}%`;
+        star.style.top = `${Math.random() * 100}%`;
+        star.style.setProperty('--duration', `${2 + Math.random() * 3}s`);
+        star.style.animationDelay = `${Math.random() * 5}s`;
+        container.appendChild(star);
+    }
+
+    // Logika spadających gwiazd
+    const interval = setInterval(() => {
+        if (Math.random() > 0.8) {
+            createShootingStar(containerId);
+        }
+    }, 3000);
+
+    if (containerId === 'offline-sky') offlineSkyInterval = interval;
+    else mainSkyInterval = interval;
+}
+
+function stopOfflineSky() {
+    const container = document.getElementById('offline-sky');
+    if (container) container.innerHTML = "";
+    if (offlineSkyInterval) clearInterval(offlineSkyInterval);
+}
+
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus(); // Sprawdź na starcie
+
+// Inicjalizacja gwiazd na stronie głównej
+setTimeout(() => initSky('main-sky'), 1000);
 
 // --- LOGIKA BIZNESOWA ---
 const findStation = (input) => {
@@ -2950,6 +3211,16 @@ window.openSecretPanel = () => {
     document.getElementById('secret-modal').classList.add('active');
     document.body.classList.add('no-scroll');
     
+    // Jeśli już zalogowano w tej sesji, pokaż treść
+    if (isSessionAuthenticated) {
+        window.showSecretContent();
+        return;
+    }
+
+    // W przeciwnym razie pokaż panel logowania
+    document.getElementById('secret-login-view').style.display = 'block';
+    document.getElementById('secret-content-view').style.display = 'none';
+
     const statusText = document.getElementById('secret-status-text');
     if (!storedPassword) {
         statusText.innerText = "Witaj w Panelu Tajnym! Wymyśl hasło, aby je zapisać:";
@@ -3015,6 +3286,7 @@ window.checkSecretPassword = () => {
 window.showSecretContent = () => {
     document.getElementById('secret-login-view').style.display = 'none';
     document.getElementById('secret-content-view').style.display = 'flex';
+    isSessionAuthenticated = true;
     isAdminUnlocked = true;
     updateMaintenanceUI();
     updateCalcBtnUI();

@@ -23,10 +23,10 @@ html, body {
 }
 
 body {
-    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #4c1d95 100%);
+    background: linear-gradient(180deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
     background-attachment: fixed;
     background-size: cover;
-    color: #f8fafc;
+    color: white;
     font-family: 'Inter', sans-serif;
     display: flex;
     justify-content: center;
@@ -902,6 +902,108 @@ footer {
 
 .footer-links p {
     margin: 3px 0;
+}
+
+/* --- OFFLINE OVERLAY --- */
+.offline-overlay {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: linear-gradient(180deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%);
+    z-index: 10001;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    color: white;
+    overflow: hidden;
+}
+
+.offline-sky-container {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: -1;
+}
+
+#main-sky {
+    position: fixed;
+    z-index: -2;
+}
+
+.star {
+    position: absolute;
+    background: white;
+    border-radius: 50%;
+    opacity: 0;
+    animation: twinkle var(--duration) infinite ease-in-out;
+}
+
+@keyframes twinkle {
+    0%, 100% { opacity: 0.3; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.2); }
+}
+
+.shooting-star {
+    position: absolute;
+    width: 150px;
+    height: 2px;
+    background: linear-gradient(270deg, rgba(255,255,255,0.8), transparent);
+    box-shadow: 0 0 15px rgba(255,255,255,0.4);
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 5;
+    animation: shoot var(--duration) linear forwards;
+}
+
+@keyframes shoot {
+    0% {
+        transform: translate(0, 0) rotate(215deg) scale(0);
+        opacity: 0;
+    }
+    10% {
+        transform: translate(0, 0) rotate(215deg) scale(1);
+        opacity: 1;
+    }
+    100% {
+        transform: translate(-800px, 400px) rotate(215deg) scale(0.5);
+        opacity: 0;
+    }
+}
+
+.offline-content {
+    position: relative;
+    z-index: 10;
+}
+
+.offline-overlay.active {
+    display: flex;
+}
+
+.offline-icon {
+    font-size: 80px;
+    color: var(--danger);
+    margin-bottom: 20px;
+    filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.4));
+}
+
+.offline-badge {
+    background: rgba(255,255,255,0.1);
+    padding: 8px 20px;
+    border-radius: 50px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.offline-dot {
+    width: 10px;
+    height: 10px;
+    background: #94a3b8;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #94a3b8;
 }
 
 /* --- KARTY (GLASSMORPHISM) --- */
