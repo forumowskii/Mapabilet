@@ -1,6 +1,48 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, onValue, set, push, remove, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { getDatabase, ref, onValue, set, push, remove, update, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 import PhotoSwipeLightbox from 'https://unpkg.com/photoswipe@5.4.3/dist/photoswipe-lightbox.esm.js';
+
+let isConnectionMode = false;
+let connectionStartStation = null;
+let isCurveEditMode = false;
+let activeCurveId = null;
+
+// --- ZMIENNE GLOBALNE ---
+let gridActive = false;
+let busClicks = 0;
+let isAdminUnlocked = false;
+let isSessionAuthenticated = false;
+let storedPassword = null;
+let isDeveloperModeActive = false;
+let isDrawMode = false;
+let drawPoints = [];
+let maintenanceEndTime = null;
+let maintenanceInterval = null;
+let stationEditorBg = null;
+let tempMarker = null;
+let isMapVisible = true;
+let showEditorBg = true;
+let isForceAuthActive = false;
+let globalPinSize = 6;
+let globalPinColor = "#ffffff";
+let globalLineWidth = 4;
+let globalHeatWidth = 1.5;
+let globalTextRotation = 0;
+let heatLineThickness = 4;
+let heatColorTheme = 'classic';
+let heatMapBg = '#0f172a';
+let isCalcDisabled = false;
+let calcDisabledMsg = "Funkcja tymczasowo niedostępna.";
+let mapBgSettings = { w: 1200, h: 1800, offX: 0, offY: 0 };
+let loadTimeValue = 0;
+let systemStatus = "online";
+let draggedLabel = null;
+let isLabelEditMode = false;
+let selectedLabelForRotation = null;
+let isParentSelectionMode = false;
+let parentSelectionSource = null;
+let newStationParentHandler = null;
 
 // --- KONFIGURACJA ---
 const startTime = performance.now();
@@ -33,6 +75,21 @@ const normalizeStationName = (name) => {
         .replace(/ł/g, "l")
         .replace(/[^a-z0-9 ]/g, "")
         .trim();
+};
+
+// Helper do rozdzielania ID połączenia (obsługa nazw stacji zawierających '|')
+const splitConnectionId = (id) => {
+    if (!id) return [null, null];
+    const parts = id.split('|');
+    if (parts.length === 2) return parts;
+    
+    // Szukamy punktu podziału, który daje dwa istniejące klucze stacji
+    for (let i = 1; i < parts.length; i++) {
+        const a = parts.slice(0, i).join('|');
+        const b = parts.slice(i).join('|');
+        if (stations[a] && stations[b]) return [a, b];
+    }
+    return [parts[0], parts[1]]; // Fallback do starego zachowania
 };
 
 // --- TAGS INPUT SYSTEM ---
@@ -177,17 +234,6 @@ const originalLog = console.log;
 const originalError = console.error;
 const secretConsole = () => document.getElementById('secret-console');
 
-const errorBook = {
-    "36": "Nieoczekiwany błąd systemu (Generic Error)",
-    "01": "Błąd połączenia z bazą Firebase",
-    "02": "Nieprawidłowe hasło administratora",
-    "03": "Stacja nie została znaleziona w bazie",
-    "04": "Błąd podczas zapisu danych (Permission Denied)",
-    "05": "Przekroczono limit zapytań API",
-    "10": "Błąd skalowania mapy - nieprawidłowe wymiary",
-    "15": "Błąd PhotoSwipe - nie można załadować obrazu"
-};
-
 console.log = (...args) => {
     originalLog(...args);
     const consoleElem = secretConsole();
@@ -223,6 +269,266 @@ import { firebaseConfig } from './firebase-secrets.js';
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+const auth = getAuth(app);
+
+// Włączanie trwałej sesji dla Firebase Auth
+setPersistence(auth, browserLocalPersistence)
+    .catch((error) => console.error("Persistence error:", error));
+
+// Sprawdzanie zapisanej sesji admina (hasło bazy)
+if (localStorage.getItem('adminSession') === 'active') {
+    isSessionAuthenticated = true;
+    isAdminUnlocked = true;
+}
+
+// --- LOGIKA AUTORYZACJI (LANDING PAGE) ---
+let landingAuthMode = 'login'; // 'login' | 'register' | 'verify'
+let landingTempData = null;
+
+window.switchLandingTab = (mode) => {
+    landingAuthMode = mode;
+    const loginTab = document.getElementById('tab-login');
+    const registerTab = document.getElementById('tab-register');
+    const authBtn = document.getElementById('landing-auth-btn');
+    const emailGroup = document.getElementById('landing-email-group');
+    
+    if (mode === 'login') {
+        loginTab.classList.add('active');
+        registerTab.classList.remove('active');
+        authBtn.innerText = "ZALOGUJ SIĘ";
+        if (emailGroup) emailGroup.style.display = 'block';
+    } else if (mode === 'register') {
+        loginTab.classList.remove('active');
+        registerTab.classList.add('active');
+        authBtn.innerText = "ZAREJESTRUJ SIĘ";
+        if (emailGroup) emailGroup.style.display = 'block';
+    } else if (mode === 'admin') {
+        loginTab.classList.remove('active');
+        registerTab.classList.remove('active');
+        authBtn.innerText = "ZALOGUJ JAKO ADMIN";
+        if (emailGroup) emailGroup.style.display = 'none';
+    }
+    window.resetLandingAuth();
+};
+
+window.resetLandingAuth = () => {
+    document.getElementById('landing-pass-group').style.display = 'block';
+    document.getElementById('landing-code-group').style.display = 'none';
+    document.getElementById('landing-back-btn').style.display = 'none';
+    
+    if (landingAuthMode === 'admin') {
+        document.getElementById('landing-auth-btn').innerText = "ZALOGUJ JAKO ADMIN";
+        document.getElementById('landing-email-group').style.display = 'none';
+    } else {
+        document.getElementById('landing-auth-btn').innerText = landingAuthMode === 'login' ? "ZALOGUJ SIĘ" : "ZAREJESTRUJ SIĘ";
+        document.getElementById('landing-email-group').style.display = 'block';
+    }
+    
+    landingTempData = null;
+    if (landingAuthMode === 'verify') landingAuthMode = 'login'; 
+};
+
+window.handleLandingAuth = async () => {
+    try {
+        const email = document.getElementById('landing-email').value.trim();
+        const password = document.getElementById('landing-password').value;
+        const code = document.getElementById('landing-code').value.trim();
+
+        // LOGOWANIE ADMINA (HASŁO BAZY)
+        if (landingAuthMode === 'admin') {
+            if (!password) return window.showToast("Wpisz hasło administratora!", "error");
+            if (password === storedPassword) {
+                isAdminUnlocked = true;
+                isSessionAuthenticated = true;
+                localStorage.setItem('adminSession', 'active');
+                document.getElementById('landing-page').style.display = 'none';
+                document.getElementById('main-app-content').style.display = 'block';
+                document.getElementById('auth-logged-in').style.display = 'flex';
+                document.getElementById('user-display-email').innerText = "ADMINISTRATOR";
+                window.showToast("Zalogowano jako Administrator", "success");
+                updateAppVisibility();
+            } else {
+                window.showToast("Błędne hasło administratora!", "error");
+            }
+            return;
+        }
+
+        if (!email && landingAuthMode !== 'admin') return window.showToast("Wprowadź e-mail!", "error");
+
+        if (landingAuthMode === 'verify') {
+            if (!code || code.length !== 6) return window.showToast("Wprowadź 6-cyfrowy kod!", "error");
+            
+            const codeRef = ref(db, `auth_codes/${email.replace(/\./g, '_')}`);
+            const snapshot = await get(codeRef);
+            
+            if (snapshot.exists() && snapshot.val().code === code) {
+                try {
+                    if (landingTempData.isNew) {
+                        await createUserWithEmailAndPassword(auth, email, landingTempData.password);
+                        window.showToast("Konto utworzone!", "success");
+                    } else {
+                        await signInWithEmailAndPassword(auth, email, landingTempData.password);
+                        window.showToast("Zalogowano!", "success");
+                    }
+                    remove(codeRef);
+                } catch (err) {
+                    let msg = "Błąd: " + err.message;
+                    if (err.code === 'auth/email-already-in-use') msg = "E-mail już zajęty!";
+                    window.showToast(msg, "error");
+                }
+            } else {
+                window.showToast("Błędny kod!", "error");
+            }
+            return;
+        }
+
+        if (!password || password.length < 6) return window.showToast("Hasło min. 6 znaków!", "error");
+
+        if (landingAuthMode === 'register') {
+            window.showToast("Sprawdzanie e-maila...", "info");
+            // Możemy dodać wstępną walidację formatu e-mail
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                return window.showToast("Niepoprawny format adresu e-mail!", "error");
+            }
+        }
+
+        if (landingAuthMode === 'login') {
+            window.showToast("Sprawdzanie...", "info");
+            try {
+                if (!email) throw new Error("auth/invalid-email");
+                await signInWithEmailAndPassword(auth, email, password);
+                await signOut(auth);
+            } catch (err) {
+                let msg = "Błąd: " + err.message;
+                if (err.code === 'auth/wrong-password' || err.message.includes('wrong-password')) msg = "Błędne hasło!";
+                if (err.code === 'auth/user-not-found' || err.message.includes('user-not-found')) msg = "Użytkownik nie istnieje!";
+                if (err.code === 'auth/invalid-email' || err.message.includes('invalid-email')) msg = "Nieprawidłowy adres e-mail!";
+                if (err.message.includes('CONFIGURATION_NOT_FOUND')) msg = "Błąd: Włącz 'Email/Password' w Firebase Console (Authentication > Sign-in method)!";
+                return window.showToast(msg, "error");
+            }
+        }
+
+        const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+        await set(ref(db, `auth_codes/${email.replace(/\./g, '_')}`), {
+            code: verificationCode,
+            timestamp: Date.now()
+        });
+
+        window.showToast("Kod wysłany na e-mail!", "success");
+        // Kod jest zapisany w Firebase: auth_codes/email_z_podkreslnikami
+
+        landingTempData = { email, password, isNew: (landingAuthMode === 'register') };
+        landingAuthMode = 'verify';
+        
+        document.getElementById('landing-pass-group').style.display = 'none';
+        document.getElementById('landing-code-group').style.display = 'block';
+        document.getElementById('landing-back-btn').style.display = 'block';
+        document.getElementById('landing-auth-btn').innerText = "POTWIERDŹ KOD";
+        
+    } catch (err) {
+        let msg = "Błąd: " + err.message;
+        if (err.message.includes('CONFIGURATION_NOT_FOUND')) msg = "Błąd: Włącz 'Email/Password' w Firebase Console!";
+        window.showToast(msg, "error");
+    }
+};
+
+window.toggleForceAuth = () => {
+    const newState = !isForceAuthActive;
+    update(configRef, { isForceAuthActive: newState })
+        .then(() => {
+            window.showToast(newState ? "Tryb testowy ekranu startowego włączony" : "Tryb testowy wyłączony", "success");
+        })
+        .catch(err => {
+            console.error("Błąd zapisu forceAuth:", err);
+            window.showToast("Błąd uprawnień Firebase!", "error");
+        });
+};
+
+window.previewLandingPage = () => {
+    window.closeAllModals();
+    const landing = document.getElementById('landing-page');
+    const main = document.getElementById('main-app-content');
+    if (landing && main) {
+        landing.style.display = 'flex';
+        main.style.display = 'none';
+        window.showToast("Podgląd ekranu startowego aktywny", "info");
+    }
+};
+
+window.toggleAuthBar = () => {
+    const bar = document.getElementById('top-auth-bar');
+    const trigger = document.getElementById('auth-bar-trigger');
+    
+    if (bar.classList.contains('collapsed')) {
+        bar.classList.remove('collapsed');
+        trigger.style.display = 'none';
+    } else {
+        bar.classList.add('collapsed');
+        trigger.style.display = 'flex';
+    }
+};
+
+window.handleLogout = () => {
+    signOut(auth).then(() => {
+        isSessionAuthenticated = false;
+        isAdminUnlocked = false;
+        localStorage.removeItem('adminSession');
+        window.showToast("Wylogowano.", "info");
+    });
+};
+
+// Funkcja sterująca widocznością całej aplikacji
+function updateAppVisibility() {
+    const user = auth.currentUser;
+    const landing = document.getElementById('landing-page');
+    const main = document.getElementById('main-app-content');
+    const maintenance = document.getElementById('maintenance-overlay');
+    const loggedInBar = document.getElementById('auth-logged-in');
+    const userEmailSpan = document.getElementById('user-display-email');
+
+    const isAuthenticated = user || isSessionAuthenticated;
+    
+    // 1. Sprawdzamy czy wymuszamy logowanie
+    if (isForceAuthActive && !isAuthenticated) {
+        if (landing) landing.style.display = 'flex';
+        if (main) main.style.display = 'none';
+        if (maintenance) maintenance.classList.remove('active');
+        return;
+    }
+
+    // 2. Jeśli nie wymuszamy lub jesteśmy zalogowani, sprawdzamy tryb konserwacji
+    const shouldShowMaintenance = isDeveloperModeActive && !isAdminUnlocked;
+
+    if (shouldShowMaintenance) {
+        if (landing) landing.style.display = 'none';
+        if (main) main.style.display = 'none'; // Przywrócono 'none' dla poprawnego działania nakładki
+        if (maintenance) {
+            maintenance.classList.add('active');
+            startMaintenanceCountdown();
+        }
+    } else {
+        // Pokazujemy główną aplikację
+        if (landing) landing.style.display = 'none';
+        if (main) main.style.display = 'block';
+        if (maintenance) {
+            maintenance.classList.remove('active');
+            if (maintenanceInterval) clearInterval(maintenanceInterval);
+        }
+        
+        // Aktualizacja paska logowania
+        if (isAuthenticated) {
+            if (loggedInBar) loggedInBar.style.display = 'flex';
+            if (userEmailSpan) userEmailSpan.innerText = user ? user.email : "ADMINISTRATOR";
+        } else {
+            if (loggedInBar) loggedInBar.style.display = 'none';
+        }
+    }
+}
+
+onAuthStateChanged(auth, () => {
+    updateAppVisibility();
+});
 
 const statsRef = ref(db, 'stats/oszczednosci');
 const tripsRef = ref(db, 'stats/przejazdy');
@@ -250,40 +556,27 @@ window.sortHistory = (key) => {
     }
     renderFullHistory();
 };
-let gridActive = false;
-let busClicks = 0;
-let isAdminUnlocked = false;
-let isSessionAuthenticated = false;
-let storedPassword = null;
-let isDeveloperModeActive = false;
-let isDrawMode = false;
-let drawPoints = [];
-let maintenanceEndTime = null;
-let maintenanceInterval = null;
-let stationEditorBg = null;
-let tempMarker = null;
-let isMapVisible = true;
-let showEditorBg = true;
-let globalPinSize = 6;
-let globalPinColor = "#ffffff";
-let globalLineWidth = 4;
-let globalHeatWidth = 1.5;
-let globalTextRotation = 0;
-let isCalcDisabled = false;
-let calcDisabledMsg = "Funkcja tymczasowo niedostępna.";
-let mapBgSettings = { w: 1200, h: 1800, offX: 0, offY: 0 };
-let loadTimeValue = 0;
-let systemStatus = "online";
-let draggedLabel = null;
-let isLabelEditMode = false;
-let selectedLabelForRotation = null;
-let isParentSelectionMode = false;
-let parentSelectionSource = null;
-let newStationParentHandler = null;
 
 window.toggleLabelEditMode = () => {
     isLabelEditMode = !isLabelEditMode;
     
+    if (isLabelEditMode) {
+        // Wyłączamy tryby edycji mapy przy włączaniu edycji etykiet
+        isConnectionMode = false;
+        isCurveEditMode = false;
+        isDrawMode = false;
+        isParentSelectionMode = false;
+        
+        const connBtn = document.getElementById('toggle-connection-mode-btn');
+        if (connBtn) { connBtn.innerText = "TRYB ŁĄCZENIA: WYŁ"; connBtn.style.background = "#475569"; }
+        const curveBtn = document.getElementById('toggle-curve-edit-btn');
+        if (curveBtn) { curveBtn.innerText = "EDYCJA KRZYWYCH: WYŁ"; curveBtn.style.background = "#475569"; }
+        const drawBtn = document.getElementById('toggle-draw-mode-btn');
+        if (drawBtn) { drawBtn.innerText = "TRYB RYSOWANIA: WYŁ"; drawBtn.style.background = "#475569"; }
+        
+        renderBase();
+    }
+
     // Aktualizacja przycisku w edytorze (prawy panel)
     const btnEditor = document.getElementById('toggle-label-edit-btn');
     if (btnEditor) {
@@ -440,7 +733,16 @@ function initEditorKnobs() {
     if (rotInput) {
         rotInput.addEventListener('input', (e) => {
             if (!selectedLabelForRotation) return;
-            let deg = parseInt(e.target.value) || 0;
+            
+            let val = e.target.value;
+            
+            // Pozwól na wpisanie samego minusa lub minusa z zerem
+            if (val === "-" || val === "-0") {
+                updateRotationLive(0);
+                return;
+            }
+
+            let deg = parseInt(val) || 0;
             currentRotation = deg;
             updateRotationLive(deg);
             
@@ -449,6 +751,13 @@ function initEditorKnobs() {
                 const name = selectedLabelForRotation.name;
                 update(ref(db, `stats/stacje_siec/${name}`), { rotation: currentRotation });
             }, 500);
+        });
+
+        // Czyszczenie przy wyjściu z pola
+        rotInput.addEventListener('blur', (e) => {
+            if (e.target.value === "-" || e.target.value === "-0") {
+                e.target.value = "";
+            }
         });
     }
 
@@ -527,6 +836,52 @@ window.updateGlobalHeatWidth = (val) => {
     globalHeatWidth = parseFloat(val);
     set(ref(db, 'stats/config/globalHeatWidth'), globalHeatWidth);
     renderHeat();
+};
+
+window.updateHeatLineThickness = (val) => {
+    const thickness = parseFloat(val);
+    set(ref(db, 'stats/config/heatLineThickness'), thickness);
+    renderHeat();
+};
+
+window.updateHeatColorTheme = (val) => {
+    heatColorTheme = val;
+    set(ref(db, 'stats/config/heatColorTheme'), val);
+    updateHeatLegend();
+    renderHeat();
+};
+
+window.updateHeatMapBg = (val) => {
+    heatMapBg = val;
+    set(ref(db, 'stats/config/heatMapBg'), val);
+    applyHeatMapBg();
+};
+
+function applyHeatMapBg() {
+    const wrapper = document.querySelector('#heatmap-view .map-wrapper');
+    if (wrapper) {
+        wrapper.style.background = heatMapBg;
+    }
+}
+
+function updateHeatLegend() {
+    const colors = heatThemes[heatColorTheme] || heatThemes.classic;
+    document.querySelectorAll('.heat-legend-box').forEach(box => {
+        const idx = parseInt(box.getAttribute('data-idx'));
+        if (colors[idx]) box.style.background = colors[idx];
+    });
+}
+
+window.saveDefaultView = (mode) => {
+    if (mode === 'base') {
+        set(ref(db, 'stats/config/defaultMapState'), mapState).then(() => {
+            window.showToast("Domyślny widok edytora zapisany!", "success");
+        });
+    } else if (mode === 'heat') {
+        set(ref(db, 'stats/config/defaultHeatState'), heatState).then(() => {
+            window.showToast("Domyślny widok heatmapy zapisany!", "success");
+        });
+    }
 };
 
 window.updateGlobalTextRotation = (val) => {
@@ -693,6 +1048,7 @@ const renderBase = () => {
 
 const renderHeat = () => {
     try {
+        applyHeatMapBg();
         renderMapElements('svg-heatmap', heatState, 'heat');
         updateHotRoutesUI();
     } catch (e) {
@@ -709,6 +1065,33 @@ const taryfa = [
 ];
 
 // --- CUSTOM GUI DIALOG SYSTEM (Non-Native) ---
+window.showFullRanking = (title, items) => {
+    const view = document.getElementById('full-ranking-view');
+    const titleElem = document.getElementById('full-ranking-title');
+    const content = document.getElementById('full-ranking-content');
+    
+    titleElem.innerText = title;
+    content.innerHTML = "";
+    
+    items.forEach(item => {
+        const div = document.createElement('div');
+        div.style.cssText = "background: rgba(255,255,255,0.03); padding: 18px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);";
+        div.innerHTML = `
+            <div style="font-size: 15px; font-weight: 800; color: #fff; line-height: 1.4;">${item.label}</div>
+            <div style="font-size: 13px; opacity: 0.8; color: var(--accent); font-weight: 700; letter-spacing: 0.5px;">${item.value}</div>
+        `;
+        content.appendChild(div);
+    });
+    
+    view.style.display = "flex";
+    // Dodaj animację wejścia
+    view.style.animation = "modalFadeIn 0.3s ease-out forwards";
+};
+
+window.closeFullRanking = () => {
+    document.getElementById('full-ranking-view').style.display = "none";
+};
+
 window.openUniversalEdit = (title, fields, onSave) => {
     const modal = document.getElementById('universal-edit-modal');
     const titleElem = document.getElementById('edit-modal-title');
@@ -718,27 +1101,38 @@ window.openUniversalEdit = (title, fields, onSave) => {
     titleElem.innerText = title;
     fieldsContainer.innerHTML = "";
     
+    // Przełączamy na grid jeśli jest więcej niż 4 pola
+    const isGrid = fields.length > 4;
+    fieldsContainer.style.display = "grid";
+    fieldsContainer.style.gridTemplateColumns = isGrid ? "1fr 1fr" : "1fr";
+    fieldsContainer.style.gap = "15px";
+
     const inputs = {};
 
     fields.forEach(field => {
         const wrap = document.createElement('div');
         wrap.style.display = "flex";
         wrap.style.flexDirection = "column";
-        wrap.style.gap = "5px";
+        wrap.style.gap = "6px";
         
-        // Niektóre pola mogą być na całą szerokość (np. nazwa)
-        if (field.id === 'name' || field.id === 'labelPos' || field.type === 'textarea') {
+        // Pola tekstowe (textarea) lub nazwa stacji na całą szerokość w trybie grid
+        if (isGrid && (field.type === 'textarea' || field.id === 'name' || field.id === 'parent')) {
             wrap.style.gridColumn = "span 2";
         }
-        
+
         const label = document.createElement('label');
         label.innerText = field.label;
-        label.style.fontSize = "12px";
-        label.style.opacity = "0.7";
+        label.style.fontSize = "11px";
+        label.style.fontWeight = "700";
+        label.style.color = "var(--accent)";
+        label.style.letterSpacing = "0.5px";
+        label.style.textTransform = "uppercase";
+        label.style.opacity = "0.9";
         
         let input;
         if (field.type === 'select') {
             input = document.createElement('select');
+            input.style.cssText = "background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 12px; border-radius: 10px; font-size: 14px; outline: none;";
             field.options.forEach(opt => {
                 const o = document.createElement('option');
                 o.value = opt.value;
@@ -750,8 +1144,11 @@ window.openUniversalEdit = (title, fields, onSave) => {
             const tagContainer = document.createElement('div');
             tagContainer.className = 'tags-input-container';
             tagContainer.id = `tags-input-${field.id}`;
-            tagContainer.innerHTML = `<input type="text" placeholder="${field.placeholder || 'Dodaj stację...'}">`;
+            tagContainer.innerHTML = `<input type="text" placeholder="${field.placeholder || 'Dodaj stację...'}" style="background: transparent; border: none; color: #fff; width: 100%; outline: none;">`;
+            tagContainer.style.cssText = "background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 10px; display: flex; flex-wrap: wrap; gap: 5px; min-height: 45px; align-items: center;";
             
+            if (isGrid) wrap.style.gridColumn = "span 2";
+
             wrap.appendChild(label);
             wrap.appendChild(tagContainer);
             fieldsContainer.appendChild(wrap);
@@ -761,11 +1158,27 @@ window.openUniversalEdit = (title, fields, onSave) => {
                 get value() { return handler.getTags().join(', '); },
                 set value(v) { handler.setTags(v.split(',').map(t => t.trim()).filter(t => t)); }
             };
-            return; // Skip standard append
+            return; 
         } else {
-            input = document.createElement(field.type === 'textarea' ? 'textarea' : 'input');
-            input.type = field.type || 'text';
-            input.value = field.value || "";
+            const isTextarea = field.type === 'textarea';
+            input = document.createElement(isTextarea ? 'textarea' : 'input');
+            if (!isTextarea) input.type = field.type || 'text';
+            
+            // Obsługa "niewidzialnego zera" i wartości domyślnych
+            if (field.value === 0 || field.value === "0") {
+                input.value = ""; // Zero traktujemy jako brak wartości (pokazuje placeholder)
+            } else {
+                input.value = field.value || "";
+            }
+            
+            input.style.cssText = `background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; padding: 12px; border-radius: 10px; font-size: 14px; outline: none; transition: border-color 0.2s; font-family: inherit;`;
+            if (isTextarea) {
+                input.style.height = "100px";
+                input.style.resize = "none";
+            }
+            
+            input.onfocus = () => input.style.borderColor = "var(--accent)";
+            input.onblur = () => input.style.borderColor = "rgba(255,255,255,0.1)";
         }
         input.placeholder = field.placeholder || "";
         input.style.width = "100%";
@@ -834,12 +1247,13 @@ window.hideActionMenu = () => {
     menu.style.display = "none";
 };
 
-window.openDeleteConfirm = (details, onConfirm) => {
+window.openDeleteConfirm = (details, onConfirm, buttonText = "TAK, USUŃ TRWALE") => {
     const modal = document.getElementById('delete-confirm-modal');
     const detailsElem = document.getElementById('delete-confirm-details');
     const yesBtn = document.getElementById('delete-confirm-yes');
 
     detailsElem.innerText = details;
+    yesBtn.innerText = buttonText;
     modal.style.display = "flex";
     modal.classList.add('active');
 
@@ -951,6 +1365,7 @@ onValue(statsRef, (s) => {
     window.showToast("Zsynchronizowano statystyki", "success");
 });
 
+let isInitialConfigLoad = true;
 onValue(configRef, (s) => { 
     if (s.exists()) {
         const config = s.val();
@@ -959,16 +1374,40 @@ onValue(configRef, (s) => {
         stationEditorBg = config.stationEditorBg || null;
         isMapVisible = config.isMapVisible !== undefined ? config.isMapVisible : true;
 
+        // Aplikuj domyślne widoki tylko przy pierwszym ładowaniu
+        if (isInitialConfigLoad) {
+            if (config.defaultMapState) {
+                mapState = { ...config.defaultMapState };
+            }
+            if (config.defaultHeatState) {
+                heatState = { ...config.defaultHeatState };
+            }
+            isInitialConfigLoad = false;
+        }
+
+        renderBase();
+        renderHeat();
+        
         if (config.lastExportDate) {
             const display = document.getElementById('last-export-date');
             if (display) display.innerText = config.lastExportDate;
         }
+
         showEditorBg = config.showEditorBg !== undefined ? config.showEditorBg : true;
         isCalcDisabled = config.isCalcDisabled || false;
         calcDisabledMsg = config.calcDisabledMsg || "Funkcja tymczasowo niedostępna.";
         mapBgSettings = config.mapBgSettings || { w: 1200, h: 1800, offX: 0, offY: 0 };
         systemStatus = config.systemStatus || "online";
         isDeveloperModeActive = config.isDeveloperModeActive || false;
+        isForceAuthActive = config.isForceAuthActive || false;
+
+        const forceAuthBtn = document.getElementById('force-auth-toggle-btn');
+        if (forceAuthBtn) {
+            forceAuthBtn.innerText = isForceAuthActive ? "WŁĄCZONY" : "WYŁĄCZONY";
+            forceAuthBtn.style.background = isForceAuthActive ? "var(--success)" : "var(--danger)";
+        }
+
+        updateAppVisibility();
         
         if (config.globalPinSize !== undefined) {
             globalPinSize = config.globalPinSize;
@@ -999,11 +1438,38 @@ onValue(configRef, (s) => {
             });
         }
 
+        if (config.heatLineThickness !== undefined) {
+            heatLineThickness = config.heatLineThickness;
+            const input = document.getElementById('heat-line-thickness-input');
+            if (input) input.value = heatLineThickness;
+        }
+
+        if (config.heatColorTheme !== undefined) {
+            heatColorTheme = config.heatColorTheme;
+            const select = document.getElementById('heat-color-theme');
+            if (select) select.value = heatColorTheme;
+            updateHeatLegend();
+        }
+
+        if (config.heatMapBg !== undefined) {
+            heatMapBg = config.heatMapBg;
+            const input = document.getElementById('heat-map-bg-color');
+            if (input) input.value = heatMapBg;
+            applyHeatMapBg();
+        }
+
         if (config.globalTextRotation !== undefined) {
             globalTextRotation = config.globalTextRotation;
             document.querySelectorAll('input[type="range"][oninput*="updateGlobalTextRotation"]').forEach(input => {
                 input.value = globalTextRotation;
             });
+        }
+
+        if (config.failedPasswords) {
+            renderFailedPasswords(config.failedPasswords);
+        } else {
+            const list = document.getElementById('failed-passwords-list');
+            if (list) list.innerHTML = '<p style="opacity: 0.5; text-align: center;">Brak prób włamań...</p>';
         }
 
         // Aktualizuj input w adminie jeśli istnieje
@@ -1268,12 +1734,21 @@ onValue(connectionsRef, (s) => {
     renderAdminConnections();
 });
 
-let isConnectionMode = false;
-let connectionStartStation = null;
-
 window.toggleConnectionMode = () => {
     isConnectionMode = !isConnectionMode;
     connectionStartStation = null;
+    
+    if (isConnectionMode) {
+        isCurveEditMode = false;
+        isDrawMode = false;
+        isParentSelectionMode = false;
+        // Aktualizacja przycisków innych trybów
+        const curveBtn = document.getElementById('toggle-curve-edit-btn');
+        if (curveBtn) { curveBtn.innerText = "EDYCJA KRZYWYCH: WYŁ"; curveBtn.style.background = "#475569"; }
+        const drawBtn = document.getElementById('toggle-draw-mode-btn');
+        if (drawBtn) { drawBtn.innerText = "TRYB RYSOWANIA: WYŁ"; drawBtn.style.background = "#475569"; }
+    }
+
     const btn = document.getElementById('toggle-connection-mode-btn');
     if (btn) {
         btn.innerText = isConnectionMode ? "ŁĄCZENIE: WŁ" : "ŁĄCZENIE: WYŁ";
@@ -1344,21 +1819,24 @@ window.toggleEditorMenu = () => {
     }
 };
 
-let isCurveEditMode = false;
-let activeCurveId = null;
-
 window.toggleCurveEditMode = () => {
     isCurveEditMode = !isCurveEditMode;
-    isConnectionMode = false; // Wyłączamy zwykłe łączenie
+    
+    if (isCurveEditMode) {
+        isConnectionMode = false;
+        isDrawMode = false;
+        isParentSelectionMode = false;
+        // Aktualizacja przycisków innych trybów
+        const connBtn = document.getElementById('toggle-connection-mode-btn');
+        if (connBtn) { connBtn.innerText = "TRYB ŁĄCZENIA: WYŁ"; connBtn.style.background = "#475569"; }
+        const drawBtn = document.getElementById('toggle-draw-mode-btn');
+        if (drawBtn) { drawBtn.innerText = "TRYB RYSOWANIA: WYŁ"; drawBtn.style.background = "#475569"; }
+    }
+
     const btn = document.getElementById('toggle-curve-edit-btn');
-    const connBtn = document.getElementById('toggle-connection-mode-btn');
     if (btn) {
         btn.innerText = isCurveEditMode ? "EDYCJA KRZYWYCH: WŁ" : "EDYCJA KRZYWYCH: WYŁ";
         btn.style.background = isCurveEditMode ? "var(--success)" : "#475569";
-    }
-    if (connBtn) {
-        connBtn.innerText = "TRYB ŁĄCZENIA: WYŁ";
-        connBtn.style.background = "#475569";
     }
     renderBase();
 };
@@ -1430,8 +1908,18 @@ window.toggleParentSelectionMode = (sourceName) => {
     } else {
         isParentSelectionMode = true;
         parentSelectionSource = sourceName;
-        isConnectionMode = false; // Wyłączamy inne tryby
+        isConnectionMode = false;
         isCurveEditMode = false;
+        isDrawMode = false;
+        
+        // Aktualizacja przycisków innych trybów
+        const connBtn = document.getElementById('toggle-connection-mode-btn');
+        if (connBtn) { connBtn.innerText = "TRYB ŁĄCZENIA: WYŁ"; connBtn.style.background = "#475569"; }
+        const curveBtn = document.getElementById('toggle-curve-edit-btn');
+        if (curveBtn) { curveBtn.innerText = "EDYCJA KRZYWYCH: WYŁ"; curveBtn.style.background = "#475569"; }
+        const drawBtn = document.getElementById('toggle-draw-mode-btn');
+        if (drawBtn) { drawBtn.innerText = "TRYB RYSOWANIA: WYŁ"; drawBtn.style.background = "#475569"; }
+
         window.showToast(`Tryb wyboru nadrzędnych dla ${sourceName.toUpperCase()} - klikaj inne stacje`, "info");
     }
     renderBase();
@@ -1487,8 +1975,8 @@ function renderAdminConnections() {
                 <small style="opacity:0.7">W: ${conn.width || 4} | T: ${conn.connType.toUpperCase()}</small>
             </div>
             <div style="display: flex; gap: 5px;">
-                <i class="fa-solid fa-pen" onclick="event.stopPropagation(); window.editConnection('${id}')"></i>
-                <i class="fa-solid fa-trash" style="color: var(--danger);" onclick="event.stopPropagation(); window.openDeleteConfirm('Czy chcesz usunąć tę linię?', () => remove(ref(db, 'stats/polaczenia/${id}')))"></i>
+                <i class="fa-solid fa-pen" onclick="event.stopPropagation(); window.editConnection(\`${id}\`)"></i>
+                <i class="fa-solid fa-trash" style="color: var(--danger);" onclick="event.stopPropagation(); window.openDeleteConfirm('Czy chcesz usunąć tę linię?', () => remove(ref(db, \`stats/polaczenia/${id}\`)))"></i>
             </div>
         `;
         div.onclick = () => {
@@ -1499,32 +1987,12 @@ function renderAdminConnections() {
 }
 
 window.toggleDrawMode = () => {
-    isDrawMode = !isDrawMode;
-    isConnectionMode = false;
-    isCurveEditMode = false;
-    drawPoints = [];
-    
-    const btn = document.getElementById('toggle-draw-mode-btn');
-    if (btn) {
-        btn.innerText = isDrawMode ? "TRYB RYSOWANIA: WŁ" : "TRYB RYSOWANIA: WYŁ";
-        btn.style.background = isDrawMode ? "var(--success)" : "#475569";
-    }
-    
-    // Zresetuj inne przyciski
-    const connBtn = document.getElementById('toggle-connection-mode-btn');
-    const curveBtn = document.getElementById('toggle-curve-edit-btn');
-    if (connBtn) { connBtn.innerText = "TRYB ŁĄCZENIA: WYŁ"; connBtn.style.background = "#475569"; }
-    if (curveBtn) { curveBtn.innerText = "EDYCJA KRZYWYCH: WYŁ"; curveBtn.style.background = "#475569"; }
-
-    window.showToast(isDrawMode ? "Tryb rysownika aktywny - klikaj na mapę" : "Tryb rysownika wyłączony", "info");
-    renderBase();
+    // Funkcja wyłączona - zastąpiona przez widoczność mapy
+    window.showToast("Tryb rysownika został wyłączony", "info");
 };
 
 window.clearDrawTemp = () => {
-    if (drawPoints.length > 0) {
-        drawPoints.pop();
-        renderBase();
-    }
+    // Funkcja wyłączona
 };
 
 window.startFreeDrawing = () => {
@@ -1579,33 +2047,43 @@ window.editStationName = (key) => {
 
     window.openUniversalEdit("Edytuj Stację", [
         { id: 'name', label: 'Nazwa stacji (użyj | dla nowej linii)', value: key.toUpperCase() },
-        { id: 'km', label: 'Kilometry (KM)', value: oldData.km, type: 'number' },
+        { id: 'km', label: 'Kilometry (KM)', value: oldData.km, type: 'number', placeholder: '0' },
         { id: 'x', label: 'Pozycja X', value: oldData.x, type: 'number' },
         { id: 'y', label: 'Pozycja Y', value: oldData.y, type: 'number' },
         { id: 'labelPos', label: 'Pozycja nazwy', value: oldData.labelPos || 'right', type: 'select', options: labelOptions },
-        { id: 'fontSize', label: 'Rozmiar tekstu (px)', value: oldData.fontSize || 14, type: 'number' },
-        { id: 'rotation', label: 'Obrót tekstu (stopnie)', value: oldData.rotation || 0, type: 'number' },
-        { id: 'radius', label: 'Rozmiar kropki (Radius)', value: oldData.radius || globalPinSize, type: 'number' },
-        { id: 'offX', label: 'Offset X tekstu', value: oldData.offX || 0, type: 'number' },
-        { id: 'offY', label: 'Offset Y tekstu', value: oldData.offY || 0, type: 'number' },
+        { id: 'fontSize', label: 'Rozmiar tekstu (px)', value: oldData.fontSize, type: 'number', placeholder: '14' },
+        { id: 'rotation', label: 'Obrót tekstu (stopnie)', value: oldData.rotation, type: 'number', placeholder: '0' },
+        { id: 'radius', label: 'Rozmiar kropki (Radius)', value: oldData.radius, type: 'number', placeholder: globalPinSize.toString() },
+        { id: 'offX', label: 'Offset X tekstu', value: oldData.offX, type: 'number', placeholder: '0' },
+        { id: 'offY', label: 'Offset Y tekstu', value: oldData.offY, type: 'number', placeholder: '0' },
         { id: 'color', label: 'Kolor kropki', value: oldData.color || globalPinColor, type: 'color' },
         { id: 'parent', label: 'Stacje nadrzędne', value: oldData.parent || "", type: 'tags' }
     ], (res) => {
         const newName = res.name.toLowerCase().trim();
+        
+        // Funkcja pomocnicza do parsowania lub usuwania wartości
+        const pInt = (v) => (v === "" || v === null || v === undefined) ? null : parseInt(v);
+        const pFloat = (v) => (v === "" || v === null || v === undefined) ? null : parseFloat(v);
+
         const updatedData = {
             ...oldData,
-            km: parseFloat(res.km) || 0,
-            x: parseInt(res.x) || 0,
-            y: parseInt(res.y) || 0,
+            km: pFloat(res.km),
+            x: pInt(res.x) || 0,
+            y: pInt(res.y) || 0,
             labelPos: res.labelPos,
-            fontSize: parseInt(res.fontSize) || 14,
-            rotation: parseInt(res.rotation) || 0,
-            radius: parseInt(res.radius) || globalPinSize,
-            offX: parseInt(res.offX) || 0,
-            offY: parseInt(res.offY) || 0,
+            fontSize: pInt(res.fontSize),
+            rotation: pInt(res.rotation),
+            radius: pInt(res.radius),
+            offX: pInt(res.offX),
+            offY: pInt(res.offY),
             color: res.color,
             parent: res.parent ? res.parent.toLowerCase().trim() : null
         };
+
+        // Usuwamy klucze z wartością null, aby Firebase ich nie zapisywał (użycie domyślnych)
+        Object.keys(updatedData).forEach(k => {
+            if (updatedData[k] === null) delete updatedData[k];
+        });
 
         // Czyścimy polaczenia w bazie dla usuniętych nadrzędnych
         const oldParents = getParents(oldData);
@@ -1825,7 +2303,26 @@ function renderMainHistoryList() {
 
         const div = document.createElement('div');
         div.className = 'history-item';
-        if (isActive) div.style.cssText = activeStyle;
+        div.style.cursor = 'pointer';
+        div.style.userSelect = 'none';
+        
+        // Ręczne wykrywanie podwójnego kliknięcia (Double Tap)
+        let lastClick = 0;
+        div.addEventListener('click', (e) => {
+            const now = Date.now();
+            const delay = now - lastClick;
+            
+            if (delay < 350 && delay > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                window.editTripNote(t.key);
+                lastClick = 0; // Reset
+            } else {
+                lastClick = now;
+            }
+        });
+
+        if (isActive) div.style.cssText += activeStyle;
 
         div.innerHTML = `
             <div style="flex: 1;">
@@ -1917,7 +2414,27 @@ function renderPriceRanking() {
 
     items.forEach(item => {
         const div = document.createElement('div');
-        div.style.cssText = `display:flex; flex-direction:column; gap:2px; background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:8px; font-size:11px; border-left: 3px solid ${item.color};`;
+        div.style.cssText = `display:flex; flex-direction:column; gap:2px; background:rgba(255,255,255,0.03); padding:8px 10px; border-radius:8px; font-size:11px; border-left: 3px solid ${item.color}; cursor: pointer; user-select: none;`;
+        
+        let lastClick = 0;
+        div.addEventListener('click', (e) => {
+            const now = Date.now();
+            const delay = now - lastClick;
+            
+            if (delay < 400 && delay > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const fullText = `${item.label}: ${item.data.od.toUpperCase()} ➔ ${item.data.do.toUpperCase()} (${parseFloat(item.data.zl).toFixed(2)} zł) - ${item.data.data}`;
+                window.showFullRanking("Rekord Ceny", [
+                    { label: item.label, value: fullText }
+                ]);
+                lastClick = 0;
+            } else {
+                lastClick = now;
+            }
+        });
+
         div.innerHTML = `
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-weight:800; color:${item.color}; letter-spacing:1px;">${item.icon} ${item.label}</span>
@@ -1935,19 +2452,43 @@ function renderTopList(elementId, dataMap, suffix) {
     if (!container) return;
     container.innerHTML = "";
 
-    const sorted = Object.entries(dataMap)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 3);
+    const allSorted = Object.entries(dataMap)
+        .sort((a, b) => b[1] - a[1]);
+        
+    const top3 = allSorted.slice(0, 3);
 
-    if (sorted.length === 0) {
+    if (top3.length === 0) {
         container.innerHTML = '<div style="font-size:10px; opacity:0.3;">Brak danych...</div>';
         return;
     }
 
-    sorted.forEach(([label, count], idx) => {
+    top3.forEach(([label, count], idx) => {
         const div = document.createElement('div');
-        div.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:6px 10px; border-radius:8px; font-size:12px;";
+        div.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.03); padding:6px 10px; border-radius:8px; font-size:12px; cursor: pointer; user-select: none;";
         
+        let lastClick = 0;
+        div.addEventListener('click', (e) => {
+            const now = Date.now();
+            const delay = now - lastClick;
+            
+            if (delay < 400 && delay > 0) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Pobierz tytuł z nagłówka karty
+                const title = container.previousElementSibling ? container.previousElementSibling.innerText : "Ranking";
+                const fullData = allSorted.map(([l, c], i) => ({ 
+                    label: `${i + 1}. ${l}`, 
+                    value: `${c}${suffix}` 
+                }));
+                
+                window.showFullRanking(title, fullData);
+                lastClick = 0;
+            } else {
+                lastClick = now;
+            }
+        });
+
         let medal = "";
         if (idx === 0) medal = "🥇 ";
         if (idx === 1) medal = "🥈 ";
@@ -2033,6 +2574,23 @@ window.editTrip = (key) => {
                 set(statsRef, earnedSoFar - oldZl + updatedZl);
             }
             window.showToast("Przejazd zaktualizowany!", "success");
+        });
+    });
+};
+
+window.editTripNote = (key) => {
+    const trip = tripsData.find(t => t.key === key);
+    if (!trip) return;
+
+    // Upewnij się, że modal jest czysty i gotowy
+    window.openUniversalEdit("Edytuj Notatkę", [
+        { id: 'note', label: 'Treść notatki', value: trip.note || "", type: 'textarea', placeholder: 'Wpisz notatkę tutaj...' }
+    ], (res) => {
+        update(ref(db, `stats/przejazdy/${key}`), { note: res.note }).then(() => {
+            window.showToast("Notatka zaktualizowana!", "success");
+        }).catch(err => {
+            console.error("Błąd zapisu notatki:", err);
+            window.showToast("Błąd zapisu!", "error");
         });
     });
 };
@@ -2158,7 +2716,7 @@ const getUsageData = () => {
     Object.keys(connectionsData).forEach(id => {
         const conn = connectionsData[id];
         if (!conn.isCustom) {
-            const [a, b] = id.split('|');
+            const [a, b] = splitConnectionId(id);
             if (stations[a] && stations[b]) {
                 addEdge(a, b);
             }
@@ -2223,13 +2781,26 @@ const getUsageData = () => {
     return usage;
 };
 
+const heatThemes = {
+    classic: ["#fbbf24", "#f59e0b", "#ea580c", "#dc2626", "#991b1b", "#7f1d1d", "#4c0519", "#25020c"],
+    electric: ["#22d3ee", "#0ea5e9", "#2563eb", "#4f46e5", "#7c3aed", "#9333ea", "#c026d3", "#4c1d95"],
+    nature: ["#bef264", "#84cc16", "#22c55e", "#16a34a", "#15803d", "#166534", "#064e3b", "#022c22"],
+    sunset: ["#fda4af", "#fb7185", "#f43f5e", "#e11d48", "#be123c", "#9f1239", "#881337", "#4c0519"],
+    royal: ["#fef08a", "#fde047", "#facc15", "#eab308", "#a855f7", "#9333ea", "#7e22ce", "#581c87"]
+};
+
 const getHeatColor = (count) => {
-    if (count === 0) return "#334155"; // Wyraźniejszy szary dla braku ruchu (widoczna sieć)
-    if (count < 2) return "#fbbf24";  // Żółty (1 przejazd)
-    if (count < 5) return "#f59e0b";  // Jasny pomarańcz
-    if (count < 10) return "#ea580c"; // Ciemny pomarańcz
-    if (count < 20) return "#dc2626"; // Czerwony
-    return "#7f1d1d"; // Bordowy (Bardzo duży ruch)
+    if (count === 0) return "#334155"; 
+    const colors = heatThemes[heatColorTheme] || heatThemes.classic;
+    
+    if (count < 5) return colors[0];
+    if (count < 10) return colors[1];
+    if (count < 20) return colors[2];
+    if (count < 25) return colors[3];
+    if (count < 30) return colors[4];
+    if (count < 40) return colors[5];
+    if (count < 50) return colors[6];
+    return colors[7];
 };
 
 function renderMapElements(svgId, state, mode = 'base') {
@@ -2423,7 +2994,7 @@ function renderMapElements(svgId, state, mode = 'base') {
             s = { x: conn.x1, y: conn.y1 };
             p = { x: conn.x2, y: conn.y2 };
         } else {
-            const [a, b] = id.split('|');
+            const [a, b] = splitConnectionId(id);
             if (stations[a] && stations[b]) {
                 s = stations[a];
                 p = stations[b];
@@ -2453,7 +3024,7 @@ function renderMapElements(svgId, state, mode = 'base') {
                 const count = usage[id] || 0;
                 path.setAttribute("stroke", getHeatColor(count));
                 // Stała grubość niezależna od zoomu, żeby nie było "ciapy"
-                const baseW = (conn.width || globalLineWidth) * globalHeatWidth;
+                const baseW = heatLineThickness * globalHeatWidth;
                 const extraW = Math.min(count * 1.5, 25);
                 path.setAttribute("stroke-width", baseW + extraW);
                 path.setAttribute("stroke-linecap", "round");
@@ -2498,27 +3069,34 @@ function renderMapElements(svgId, state, mode = 'base') {
                 handle.setAttribute("stroke", "#fff");
                 handle.setAttribute("stroke-width", 2 / state.scale);
                 handle.style.cursor = "move";
+                handle.onclick = (e) => e.stopPropagation();
                 
-                let isDraggingHandle = false;
-                handle.onmousedown = (e) => { e.stopPropagation(); isDraggingHandle = true; };
-                svg.addEventListener('mousemove', (e) => {
-                    if (!isDraggingHandle) return;
-                    const pt = svg.createSVGPoint();
-                    pt.x = e.clientX; pt.y = e.clientY;
-                    const cursorpt = pt.matrixTransform(g.getScreenCTM().inverse());
-                    conn.cx = Math.round(cursorpt.x);
-                    conn.cy = Math.round(cursorpt.y);
-                    handle.setAttribute("cx", conn.cx);
-                    handle.setAttribute("cy", conn.cy);
-                    // Aktualizuj ścieżkę wizualnie bez Firebase dla płynności
-                    path.setAttribute("d", `M ${s.x} ${s.y} Q ${conn.cx} ${conn.cy} ${p.x} ${p.y}`);
-                });
-                window.addEventListener('mouseup', () => {
-                    if (isDraggingHandle) {
+                handle.onmousedown = (e) => { 
+                    e.stopPropagation();
+                    let isDraggingHandle = true;
+                    
+                    const onMouseMove = (moveEvent) => {
+                        if (!isDraggingHandle) return;
+                        const pt = svg.createSVGPoint();
+                        pt.x = moveEvent.clientX; pt.y = moveEvent.clientY;
+                        const cursorpt = pt.matrixTransform(g.getScreenCTM().inverse());
+                        conn.cx = Math.round(cursorpt.x);
+                        conn.cy = Math.round(cursorpt.y);
+                        handle.setAttribute("cx", conn.cx);
+                        handle.setAttribute("cy", conn.cy);
+                        path.setAttribute("d", `M ${s.x} ${s.y} Q ${conn.cx} ${conn.cy} ${p.x} ${p.y}`);
+                    };
+
+                    const onMouseUp = () => {
                         isDraggingHandle = false;
+                        window.removeEventListener('mousemove', onMouseMove);
+                        window.removeEventListener('mouseup', onMouseUp);
                         window.updateCurve(id, conn.cx, conn.cy);
-                    }
-                });
+                    };
+
+                    window.addEventListener('mousemove', onMouseMove);
+                    window.addEventListener('mouseup', onMouseUp);
+                };
                 g.appendChild(handle);
             }
         }
@@ -2552,7 +3130,7 @@ function renderMapElements(svgId, state, mode = 'base') {
                 if(mode === 'heat') {
                     const count = usage[id] || 0;
                     path.setAttribute("stroke", getHeatColor(count));
-                    const baseW = globalLineWidth * globalHeatWidth;
+                    const baseW = heatLineThickness * globalHeatWidth;
                     path.setAttribute("stroke-width", baseW + Math.min(count, 10));
                     path.setAttribute("stroke-linecap", "round");
                     path.setAttribute("stroke-linejoin", "round");
@@ -2583,16 +3161,11 @@ function renderMapElements(svgId, state, mode = 'base') {
     // 3. Stacje i Etykiety
     Object.keys(stations).forEach((name, index) => {
         const s = stations[name];
-        let showLabel = true;
+        if (!s || s.x === undefined || s.y === undefined || isNaN(s.x) || isNaN(s.y)) return;
         
+        let showLabel = true;
         if (mode === 'heat') {
-            // Na heatmapie ukrywamy etykiety, chyba że jest bardzo duży zoom
             if (state.scale < 1.5) showLabel = false;
-        } else {
-            // W trybie edycji (base) ZAWSZE pokazujemy wszystkie etykiety
-            // Filtrowanie index % N tylko dla trybu podglądu, jeśli to konieczne
-            // Na razie wyłączamy filtrowanie w base, żeby widzieć wszystko co dodajemy
-            showLabel = true;
         }
 
         const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -2607,7 +3180,9 @@ function renderMapElements(svgId, state, mode = 'base') {
             dot.setAttribute("stroke-width", 0.5);
             dot.style.opacity = stationUsage > 0 ? 0.9 : 0.05;
         } else {
-            dot.setAttribute("r", (s.radius || globalPinSize));
+            // Nowy styl kropek przystankowych (Ring Style)
+            const r = (s.radius || globalPinSize);
+            dot.setAttribute("r", r);
             let fillColor = s.color || globalPinColor;
             if (isConnectionMode && connectionStartStation === name) fillColor = "var(--accent)";
             if (isParentSelectionMode && parentSelectionSource === name) fillColor = "var(--warning)";
@@ -2615,8 +3190,19 @@ function renderMapElements(svgId, state, mode = 'base') {
                 const sourceParents = getParents(stations[parentSelectionSource]);
                 if (sourceParents.includes(name.toLowerCase())) fillColor = "var(--success)";
             }
-            dot.setAttribute("fill", fillColor);
+            
+            dot.setAttribute("fill", "transparent");
+            dot.setAttribute("stroke", fillColor);
+            dot.setAttribute("stroke-width", 2.5);
             dot.style.opacity = "1";
+
+            // Dodaj wewnętrzną kropkę dla efektu
+            const innerDot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            innerDot.setAttribute("cx", s.x); innerDot.setAttribute("cy", s.y);
+            innerDot.setAttribute("r", r * 0.4);
+            innerDot.setAttribute("fill", fillColor);
+            innerDot.style.pointerEvents = "none";
+            g.appendChild(innerDot);
         }
         dot.style.cursor = "pointer";
         dot.onclick = (e) => {
@@ -2671,14 +3257,18 @@ function renderMapElements(svgId, state, mode = 'base') {
             const finalDx = s.offX !== undefined ? s.offX : dx;
             const finalDy = s.offY !== undefined ? s.offY : dy;
 
-            txt.setAttribute("x", s.x + finalDx); 
-            txt.setAttribute("y", s.y + finalDy);
+            const posX = s.x + finalDx;
+            const posY = s.y + finalDy;
+            if (isNaN(posX) || isNaN(posY)) return;
+
+            txt.setAttribute("x", posX); 
+            txt.setAttribute("y", posY);
             txt.setAttribute("text-anchor", anchor);
             
             // Aplikuj rotację (indywidualną lub globalną)
             const rotation = s.rotation !== undefined ? s.rotation : globalTextRotation;
             if (rotation !== 0) {
-                txt.setAttribute("transform", `rotate(${rotation} ${s.x + finalDx} ${s.y + finalDy})`);
+                txt.setAttribute("transform", `rotate(${rotation} ${posX} ${posY})`);
             }
 
             txt.setAttribute("fill", s.color || (mode === 'base' ? "#fff" : "#cbd5e1")); 
@@ -3190,19 +3780,11 @@ window.toggleGalleryEditor = () => {
 
 // --- SEKRETNY PANEL ---
 window.handleBusClick = () => {
-    if (isAdminUnlocked) {
-        window.openSecretPanel();
-        return;
-    }
-    
     busClicks++;
     if (busClicks === 10) {
         busClicks = 0;
-        isAdminUnlocked = true;
-        document.getElementById('admin-bus-trigger').classList.add('admin-active');
-        const labelPanel = document.getElementById('admin-label-edit-panel');
-        if (labelPanel) labelPanel.style.display = 'block';
         window.openSecretPanel();
+        window.showToast("Podaj hasło administratora", "info");
     }
 };
 
@@ -3211,13 +3793,7 @@ window.openSecretPanel = () => {
     document.getElementById('secret-modal').classList.add('active');
     document.body.classList.add('no-scroll');
     
-    // Jeśli już zalogowano w tej sesji, pokaż treść
-    if (isSessionAuthenticated) {
-        window.showSecretContent();
-        return;
-    }
-
-    // W przeciwnym razie pokaż panel logowania
+    // Zawsze pokazujemy panel logowania przy otwieraniu (wymagane hasło)
     document.getElementById('secret-login-view').style.display = 'block';
     document.getElementById('secret-content-view').style.display = 'none';
 
@@ -3226,19 +3802,8 @@ window.openSecretPanel = () => {
         statusText.innerText = "Witaj w Panelu Tajnym! Wymyśl hasło, aby je zapisać:";
         document.querySelector('#secret-login-view button').innerText = "USTAW HASŁO";
     } else {
-        statusText.innerText = "Wpisz hasło, aby wejść:";
+        statusText.innerText = "Wpisz hasło, aby weść:";
         document.querySelector('#secret-login-view button').innerText = "ZALOGUJ";
-    }
-
-    // Wypełnij książkę kodów błędów
-    const bookElem = document.getElementById('error-code-book');
-    if (bookElem) {
-        bookElem.innerHTML = Object.entries(errorBook).map(([code, desc]) => `
-            <div style="display:flex; gap:10px; background:rgba(255,255,255,0.05); padding:8px; border-radius:8px;">
-                <b style="color:var(--accent); min-width:30px;">${code}</b>
-                <span style="opacity:0.8;">${desc}</span>
-            </div>
-        `).join('');
     }
 
     // Załaduj aktualne dane biletu do pól edycji
@@ -3278,16 +3843,43 @@ window.checkSecretPassword = () => {
         } else {
             alert("Błędne hasło! ❌");
             window.addConsoleLog(`NIEPOPRAWNE HASŁO ( ${pass} ) - PRÓBA LOGOWANIA PANEL TAJNY`, "error");
+            logFailedPassword(pass, "PANEL_TAJNY");
         }
     }
     input.value = "";
 };
+
+function logFailedPassword(pass, context) {
+    const failedRef = ref(db, 'stats/config/failedPasswords');
+    onValue(failedRef, (s) => {
+        let list = s.val() || [];
+        if (!Array.isArray(list)) list = [];
+        
+        // Dodaj nowe hasło na początek
+        list.unshift({
+            pass: pass,
+            date: new Date().toLocaleString(),
+            context: context
+        });
+        
+        // Zachowaj tylko 5 ostatnie
+        const limited = list.slice(0, 5);
+        set(failedRef, limited);
+    }, { onlyOnce: true });
+}
 
 window.showSecretContent = () => {
     document.getElementById('secret-login-view').style.display = 'none';
     document.getElementById('secret-content-view').style.display = 'flex';
     isSessionAuthenticated = true;
     isAdminUnlocked = true;
+    
+    // UI Updates
+    const busTrigger = document.getElementById('admin-bus-trigger');
+    if (busTrigger) busTrigger.classList.add('admin-active');
+    const labelPanel = document.getElementById('admin-label-edit-panel');
+    if (labelPanel) labelPanel.style.display = 'block';
+
     updateMaintenanceUI();
     updateCalcBtnUI();
     updateAdminPanelFields();
@@ -3308,28 +3900,27 @@ window.showSecretContent = () => {
 };
 
 window.requestPasswordChange = () => {
-    // 1. Ostrzeżenie
-    alert("⚠️ UWAGA ! to zmieni hassło do wszystkich powiązanych z aplikacją rzeczy");
-    
-    // 2. Kod zabezpieczający
-    const code = prompt("Wpisz kod zabezpieczający:");
-    if (code !== "2583") {
-        return alert("Błędny kod! Akcja przerwana. ❌");
-    }
-    
-    // 3. Nowe hasło
-    const newPass = prompt("Wpisz nowe hasło administratora:");
-    if (!newPass) return alert("Hasło nie może być puste!");
-    
-    if (confirm(`Czy na pewno chcesz zmienić hasło na: ${newPass}?`)) {
-        set(ref(db, 'stats/config/password'), newPass).then(() => {
-            alert("Hasło zostało pomyślnie zmienione! ✅");
-            storedPassword = newPass; // Aktualizacja lokalna
-        }).catch(e => {
-            console.error("Błąd zmiany hasła:", e);
-            alert("Błąd podczas zapisywania nowego hasła.");
-        });
-    }
+    window.openUniversalEdit("Zmień Hasło", [
+        { id: 'securityCode', label: 'Kod Zabezpieczający', value: "", placeholder: "Wpisz kod..." },
+        { id: 'newPassword', label: 'Nowe Hasło', value: "", placeholder: "Wpisz nowe hasło..." }
+    ], (res) => {
+        if (res.securityCode !== "2583") {
+            return window.showToast("Błędny kod zabezpieczający! ❌", "error");
+        }
+        if (!res.newPassword) {
+            return window.showToast("Hasło nie może być puste!", "error");
+        }
+
+        window.openDeleteConfirm(`Czy na pewno chcesz zmienić hasło na: ${res.newPassword}?`, () => {
+             set(ref(db, 'stats/config/password'), res.newPassword).then(() => {
+                 window.showToast("Hasło zmienione pomyślnie! ✅", "success");
+                 storedPassword = res.newPassword;
+             }).catch(e => {
+                 console.error("Błąd zmiany hasła:", e);
+                 window.showToast("Błąd podczas zapisu!", "error");
+             });
+         }, "TAK, ZMIEŃ");
+    });
 };
 
 // BAJERY
@@ -3902,7 +4493,7 @@ function updateHotRoutesUI() {
 
     const sorted = Object.entries(usage)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 5);
+        .slice(0, 3);
 
     const list = document.getElementById('hot-routes-list');
     if (!list) return;
@@ -3920,35 +4511,33 @@ function updateHotRoutesUI() {
     });
 }
 
+window.toggleHotRoutes = () => {
+    const container = document.getElementById('hot-routes-container');
+    const arrow = document.getElementById('hot-routes-arrow');
+    if (!container || !arrow) return;
+
+    if (container.style.maxHeight === "0px") {
+        container.style.maxHeight = "500px";
+        arrow.style.transform = "rotate(0deg)";
+    } else {
+        container.style.maxHeight = "0px";
+        arrow.style.transform = "rotate(-90deg)";
+    }
+};
+
 setupSVGInteractions('svg-map', mapState, renderBase);
 setupSVGInteractions('svg-heatmap', heatState, renderHeat);
 
 // --- OBSŁUGA TRYBU KONSERWACJI ---
 function updateMaintenanceUI() {
-    const overlay = document.getElementById('maintenance-overlay');
-    const mainContent = document.getElementById('main-app-content');
     const toggleBtn = document.getElementById('maintenance-toggle-btn');
     
-    const shouldShowMaintenance = isDeveloperModeActive && !isAdminUnlocked;
-
-    if (overlay) {
-        if (shouldShowMaintenance) {
-            overlay.classList.add('active');
-            startMaintenanceCountdown();
-        } else {
-            overlay.classList.remove('active');
-            if (maintenanceInterval) clearInterval(maintenanceInterval);
-        }
-    }
-
     if (toggleBtn) {
         toggleBtn.innerText = isDeveloperModeActive ? 'WŁĄCZONY 🚧' : 'WYŁĄCZONY';
         toggleBtn.style.background = isDeveloperModeActive ? 'var(--success)' : 'var(--danger)';
     }
 
-    if (mainContent) {
-        mainContent.style.display = shouldShowMaintenance ? 'none' : 'block';
-    }
+    updateAppVisibility();
 }
 
 window.checkMaintenancePassword = () => {
@@ -3968,6 +4557,7 @@ window.checkMaintenancePassword = () => {
     } else {
         window.showToast("Błędne hasło!", "error");
         window.addConsoleLog(`NIEPOPRAWNE HASŁO ( ${pass} ) - PRÓBA LOGOWANIA KONSERWACJA`, "error");
+        logFailedPassword(pass, "KONSERWACJA");
     }
     input.value = "";
 };
@@ -4026,6 +4616,29 @@ window.deleteCity = (name) => {
         remove(ref(db, `stats/visited_cities/${name}`)).then(() => window.showToast("Miasto usunięte.", "success"));
     });
 };
+
+function renderFailedPasswords(failedData) {
+    const list = document.getElementById('failed-passwords-list');
+    if (!list) return;
+    list.innerHTML = "";
+
+    // failedData to tablica obiektów { pass, date, context }
+    // Pokazujemy 5 ostatnich
+    failedData.slice(0, 5).forEach(item => {
+        const div = document.createElement('div');
+        div.style.cssText = "background: rgba(239, 68, 68, 0.1); padding: 8px; border-radius: 8px; border-left: 3px solid var(--danger); font-size: 11px;";
+        div.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <b style="color: var(--danger); font-family: monospace;">"${item.pass}"</b>
+                <small style="opacity: 0.5;">${item.date}</small>
+            </div>
+            <div style="font-size: 9px; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.5px;">
+                <i class="fa-solid fa-location-dot"></i> ${item.context || 'NIEZNANY'}
+            </div>
+        `;
+        list.appendChild(div);
+    });
+}
 
 window.saveMaintenanceTime = () => {
     const time = document.getElementById('m-end-time-input').value;
