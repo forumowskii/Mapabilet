@@ -21,7 +21,8 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
+    <div id="app-bg"></div>
+    <div class="offline-sky-container" id="main-sky"></div>
     <div id="coord-info">X: 0, Y: 0</div>
 
     <!-- EKRAN OFFLINE -->
@@ -102,30 +103,33 @@
 
             <div class="auth-container card">
                 <div class="auth-tabs">
-                    <button id="tab-login" class="auth-tab active" onclick="window.switchLandingTab('login')">LOGOWANIE</button>
-                    <button id="tab-register" class="auth-tab" onclick="window.switchLandingTab('register')">REJESTRACJA</button>
+                    <button id="tab-login" class="auth-tab active" onclick="window.switchLandingTab('login')">ZAPROSZENIE</button>
                     <button id="tab-admin" class="auth-tab" onclick="window.switchLandingTab('admin')">ADMIN</button>
                 </div>
 
                 <div id="landing-auth-form" class="landing-auth-form">
-                    <div id="landing-email-group" class="input-group">
+                    <div id="landing-invite-group" class="input-group">
+                        <i class="fa-solid fa-ticket"></i>
+                        <input type="text" id="landing-invite-code" placeholder="Kod zaproszenia">
+                    </div>
+                    <div id="landing-email-group" class="input-group" style="display: none;">
                         <i class="fa-solid fa-envelope"></i>
                         <input type="email" id="landing-email" placeholder="E-mail">
                     </div>
-                    <div class="input-group" id="landing-pass-group">
+                    <div class="input-group" id="landing-pass-group" style="display: none;">
                         <i class="fa-solid fa-lock"></i>
                         <input type="password" id="landing-password" placeholder="Hasło (min. 6 znaków)">
+                        <div id="landing-caps-warning" class="caps-lock-warning" style="display: none;">
+                            <i class="fa-solid fa-triangle-exclamation"></i> CAPSLOCK JEST WŁĄCZONY
+                        </div>
                     </div>
                     <div class="input-group" id="landing-code-group" style="display: none;">
                         <i class="fa-solid fa-key"></i>
                         <input type="text" id="landing-code" placeholder="Kod z maila" maxlength="6">
-                        <div style="color: var(--danger); font-size: 10px; font-weight: 700; margin-top: 8px; text-align: center; letter-spacing: 0.5px;">
-                            <i class="fa-solid fa-triangle-exclamation"></i> FUNKCJA OBECNIE NIE DZIAŁA
-                        </div>
                     </div>
                     
                     <button id="landing-auth-btn" class="landing-primary-btn" onclick="window.handleLandingAuth()">
-                        ZALOGUJ SIĘ
+                        WEJDŹ DO SYSTEMU
                     </button>
                     
                     <button id="landing-back-btn" class="landing-secondary-btn" style="display: none;" onclick="window.resetLandingAuth()">
@@ -193,7 +197,7 @@
                     <i class="fa-solid fa-calendar-days"></i> Strona Główna
                 </div>
                 <div class="menu-item" id="menu-gallery" onclick="window.openGallery();">
-                    <i class="fa-solid fa-clock-rotate-left"></i> Schematy
+                    <i class="fa-solid fa-clock-rotate-left"></i> <span id="menu-gallery-text">Schematy</span>
                 </div>
                 <div class="menu-item" id="menu-map" onclick="window.openMap();">
                     <i class="fa-solid fa-location-dot"></i> Mapa
@@ -201,8 +205,8 @@
                 <div class="menu-item" id="menu-heatmap" onclick="window.openHeatmap();">
                     <i class="fa-solid fa-fire"></i> Natężenie tras
                 </div>
-                <div class="menu-item" id="menu-tariff" onclick="window.openTariff();">
-                    <i class="fa-solid fa-newspaper"></i> Bilet Taryfa pomorska
+                <div class="menu-item" id="menu-achievements" onclick="window.openAchievements();">
+                    <i class="fa-solid fa-medal"></i> Osiągnięcia
                 </div>
                 <div class="menu-item" id="menu-leaderboards" onclick="window.openLeaderboards();">
                     <i class="fa-solid fa-trophy"></i> Rankingi
@@ -232,14 +236,74 @@
         <!-- Przycisk hamburgera przeniesiony na koniec pliku, aby selektor CSS działał dla wszystkich modali -->
         
     <div class="app-container">
-        <div class="offline-sky-container" id="main-sky"></div>
         <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
             <h2 style="margin:0; font-weight: 800; padding-left: 50px; letter-spacing: -1px; font-size: 16px;">Regio Licznik</h2>
             <div style="display: flex; gap: 8px; align-items: center;">
                 <div id="offline-badge-header" style="display: none; background: var(--danger); color: white; padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);">OFFLINE</div>
-                <div id="station-count-badge" style="background: var(--accent); padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(129, 140, 248, 0.3);">STACJE: 0</div>
+                <div id="ticket-status-badge" style="background: var(--success); padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(34, 197, 94, 0.3); display: flex; align-items: center; gap: 6px;">
+                    <span class="online-dot" style="animation: pulse 1.5s infinite;"></span>
+                    BILET AKTYWNY
+                </div>
             </div>
         </header>
+
+        <!-- ACTIVE TICKET INFO -->
+        <div id="active-ticket-info" style="display: none; margin-bottom: 10px; background: rgba(0,0,0,0.2); border-radius: 12px; padding: 12px 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; cursor: pointer;" onclick="window.openMonthlyTickets();">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <i class="fa-solid fa-ticket" style="color: var(--warning); font-size: 20px;"></i>
+                    <div>
+                        <div id="active-ticket-name" style="font-weight: 800; font-size: 14px;"></div>
+                        <div id="active-ticket-dates" style="font-size: 11px; opacity: 0.6;"></div>
+                    </div>
+                </div>
+                <i class="fa-solid fa-chevron-right" style="opacity: 0.4;"></i>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; font-size: 11px;">
+                <div style="text-align: center;">
+                    <div style="opacity:0.6;">Przejazdy</div>
+                    <div id="active-ticket-trips" style="font-weight: 800;"></div>
+                </div>
+                <div style="text-align: center;">
+                    <div style="opacity:0.6;">Oszczędności</div>
+                    <div id="active-ticket-savings" style="font-weight: 800; color: var(--success);"></div>
+                </div>
+            </div>
+            <div id="active-ticket-actions" style="margin-top: 10px;"></div>
+        </div>
+
+        <!-- NOTIFICATIONS -->
+        <div id="notifications-container" style="position: relative; margin-bottom: 10px;">
+            <!-- Ticket expiration notification -->
+            <div id="ticket-expire-notification" style="display: none; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 12px 16px; position: relative; overflow: hidden;">
+                <div id="ticket-expire-progress" style="position: absolute; bottom: 0; left: 0; height: 3px; background: var(--danger); width: 100%;"></div>
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                        <span style="font-size: 14px; font-weight: 800; color: var(--danger);">UWAGA!</span>
+                        <span id="ticket-expire-text" style="font-size: 12px; color: rgba(255,255,255,0.6);"></span>
+                    </div>
+                    <button onclick="window.closeTicketExpireNotification()" style="background: rgba(255,255,255,0.1); border: none; border-radius: 50%; width: 32px; height: 32px; color: rgba(255,255,255,0.6); cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Achievement unlock notification -->
+            <div id="achievement-unlock-notification" style="display: none; border-radius: 12px; padding: 12px 16px; position: relative; overflow: hidden; margin-top: 10px;">
+                <div id="achievement-unlock-progress" style="position: absolute; bottom: 0; left: 0; height: 3px; width: 100%;"></div>
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <i id="achievement-unlock-icon" class="fa-solid" style="font-size: 28px;"></i>
+                        <div style="display: flex; flex-direction: column; gap: 2px;">
+                            <span id="achievement-unlock-text" style="font-size: 12px; color: rgba(255,255,255,0.8);"></span>
+                        </div>
+                    </div>
+                    <button onclick="window.closeAchievementUnlockNotification()" style="background: rgba(255,255,255,0.1); border: none; border-radius: 50%; width: 32px; height: 32px; color: rgba(255,255,255,0.6); cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
 
         <section class="card">
             <div style="display: flex; justify-content: space-between; font-size: 12px; opacity: 0.6; font-weight: 600;">
@@ -253,7 +317,7 @@
         </section>
 
         <div style="display: flex; gap: 10px;">
-            <button onclick="window.openMap()" style="background: var(--warning); color: #000; flex: 1;">🗺️ MAPA SIECI</button>
+            <button onclick="window.openTariff()" style="background: var(--success); color: #000; flex: 1;"><i class="fa-solid fa-newspaper" style="margin-right: 5px;"></i> BILET TARYFA POMORSKA</button>
             <button onclick="window.openHeatmap()" style="background: #4338ca; flex: 1;">🔥 NATĘŻENIE</button>
         </div>
 
@@ -280,9 +344,24 @@
                     </select>
                 </div>
 
+                <!-- NOWE: Część trasy i linkowanie (Fancy UI) - PRZENIESIONE W MIEJSCE OBLICZ KM -->
+                <div class="fancy-part-container">
+                    <button type="button" id="fancy-part-btn" onclick="window.toggleFancyPartMenu()" class="fancy-part-btn">
+                        <i class="fa-solid fa-link"></i> CZĘŚĆ TRASY
+                    </button>
+                    <div id="fancy-part-menu" class="fancy-part-menu">
+                        <div class="fancy-part-inner">
+                            <select id="trip-link-to" onchange="window.handleTripLinkChange()" style="flex: 2;">
+                                <option value="">Wybierz przejazd do linkowania...</option>
+                            </select>
+                            <input type="number" id="trip-part-order" placeholder="Kolejność" title="Numer w kolejności" style="flex: 0.8; text-align: center;">
+                        </div>
+                    </div>
+                </div>
+
                 <div style="display: flex; gap: 8px;">
-                    <button id="calc-km-btn" onclick="window.calculatePrice()" style="flex: 1.2;">🧮 OBLICZ KM</button>
-                    <input type="number" id="trip-amount" placeholder="Cena zł" style="flex: 1; font-weight: bold; color: var(--success);">
+                    <button id="calc-km-btn" onclick="window.calculatePrice(event)" style="flex: 1.2; display: none;">🧮 OBLICZ KM</button>
+                    <input type="text" id="trip-amount" placeholder="Cena zł" style="flex: 1; font-weight: bold; color: var(--success); height: 50px;">
                 </div>
                 <button onclick="window.addNewTrip()" style="background: var(--success); height: 50px; font-size: 16px;">✅ ZAPISZ PRZEJAZD</button>
                 <p id="calc-info" style="text-align:center; font-size:12px; color:var(--accent); margin:0; font-weight: 600;"></p>
@@ -312,6 +391,14 @@
                 <div class="card" style="background: rgba(255,255,255,0.05); padding: 15px;">
                     <h4 style="margin:0 0 10px 0; font-size: 12px; color: var(--accent);">WIDOK I STYL</h4>
                     <div style="display: grid; gap: 8px;">
+                        <div style="display: flex; gap: 5px;">
+                            <button onclick="window.saveCurrentMapView('map')" style="flex: 1; font-size: 10px; background: var(--success); font-weight: 800; padding: 10px;">
+                                <i class="fa-solid fa-map"></i> WIDOK MAPY
+                            </button>
+                            <button onclick="window.saveCurrentMapView('heat')" style="flex: 1; font-size: 10px; background: var(--warning); color: #000; font-weight: 800; padding: 10px;">
+                                <i class="fa-solid fa-fire"></i> WIDOK HEAT
+                            </button>
+                        </div>
                         <button onclick="window.toggleGrid()" id="grid-btn" style="width:100%; font-size: 11px; background: #334155;">SIATKA: WYŁ</button>
                         <div style="display: flex; flex-direction: column; gap: 5px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px;">
                             <span style="font-size: 9px; opacity: 0.6;">Rozmiar kropki:</span>
@@ -374,6 +461,7 @@
                 <h3 style="margin:0">🗺️ Edytor Punktów Sieci</h3>
             </div>
             <div style="display:flex; gap:10px; align-items: center;">
+                <button id="heat-test-btn" onclick="window.toggleHeatTestMode()" style="font-size: 9px; padding: 5px 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: var(--warning); font-weight: 800; border-radius: 8px;">🧪 TEST</button>
                 <div style="display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 10px;">
                     <i class="fa-solid fa-magnifying-glass-plus" style="font-size: 10px; opacity: 0.6;"></i>
                     <input type="range" min="0.05" max="15" step="0.05" id="map-zoom-slider" oninput="window.updateMapZoom(this.value)" style="width: 80px; height: 4px; padding: 0; cursor: pointer;">
@@ -382,7 +470,7 @@
             </div>
         </div>
         <div class="map-wrapper">
-            <svg id="svg-map" viewBox="0 0 1200 1800"></svg>
+            <svg id="svg-map" viewBox="-200 -200 2400 2400"></svg>
             
             <!-- Pływający przycisk edycji nazw wewnątrz edytora dla wygody -->
             <div id="floating-label-edit-btn" onclick="window.toggleLabelEditMode()" style="position: absolute; bottom: 20px; right: 20px; z-index: 1000; background: rgba(30, 41, 59, 0.7); width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.1); backdrop-filter: blur(10px); box-shadow: 0 8px 25px rgba(0,0,0,0.5); cursor: pointer; transition: 0.3s;">
@@ -445,13 +533,17 @@
             </div>
             <div style="display:flex; gap:10px; align-items: center;">
                 <div style="display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 10px;">
+                    <i class="fa-solid fa-palette" style="font-size: 10px; opacity: 0.6;"></i>
+                    <input type="color" id="heat-bg-color-picker" value="#0b0f1a" oninput="window.setHeatmapBg(this.value)" style="width: 30px; height: 30px; padding: 0; border: none; border-radius: 5px; cursor: pointer;">
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 10px;">
                     <i class="fa-solid fa-magnifying-glass-plus" style="font-size: 10px; opacity: 0.6;"></i>
                     <input type="range" min="0.05" max="15" step="0.05" id="heat-zoom-slider" oninput="window.updateHeatZoom(this.value)" style="width: 80px; height: 4px; padding: 0; cursor: pointer;">
                 </div>
             </div>
         </div>
         <div class="map-wrapper">
-            <svg id="svg-heatmap" viewBox="0 0 1200 1800">
+            <svg id="svg-heatmap" viewBox="-200 -200 2400 2400">
                 <defs>
                     <filter id="heat-glow" x="-20%" y="-20%" width="140%" height="140%">
                         <feGaussianBlur stdDeviation="1" result="blur" />
@@ -474,13 +566,49 @@
 
         <div class="card" style="margin-top: 20px; background: rgba(255, 255, 255, 0.05); padding: 15px;">
             <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;" onclick="window.toggleHotRoutes()">
-                <h4 style="margin: 0; color: var(--warning); font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">🔥 Najcieplejsze Trasy</h4>
+                <h4 style="margin: 0; color: var(--warning); font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">🔥 Statystyki Natężenia</h4>
                 <i id="hot-routes-arrow" class="fa-solid fa-chevron-down" style="color: var(--warning); transition: transform 0.3s;"></i>
             </div>
-            <div id="hot-routes-container" style="display: grid; gap: 10px; margin-top: 15px; overflow: hidden; transition: max-height 0.3s ease-out; max-height: 500px;">
-                <div id="hot-routes-list" style="display: grid; gap: 10px;">
-                    <!-- Tutaj wpadną statystyki z JS -->
+            <div id="hot-routes-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px; overflow: hidden; transition: max-height 0.3s ease-out; max-height: 500px;">
+                <div>
+                    <h5 style="margin: 0 0 10px 0; font-size: 10px; opacity: 0.5; letter-spacing: 1px;">NAJCIEPLEJSZE TRASY:</h5>
+                    <div id="hot-routes-list" style="display: grid; gap: 8px;">
+                        <!-- Tutaj wpadną statystyki z JS -->
+                    </div>
                 </div>
+                <div>
+                    <h5 style="margin: 0 0 10px 0; font-size: 10px; opacity: 0.5; letter-spacing: 1px;">NAJCIEPLEJSZE STACJE:</h5>
+                    <div id="hot-stations-list" style="display: grid; gap: 8px;">
+                        <!-- Tutaj wpadną statystyki z JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="achievements-modal" class="modal">
+        <div class="modal-header">
+            <div style="display:flex; align-items:center; gap:15px;">
+                <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
+                <h3 style="margin:0">🏆 Osiągnięcia</h3>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div style="display: flex; gap: 10px; margin: 15px 0;">
+            <button id="achievement-tab-main" onclick="window.switchAchievementTab('main')" class="gadget-btn" style="background: var(--accent);">
+                <i class="fa-solid fa-trophy"></i> Osiągnięcia
+            </button>
+            <button id="achievement-tab-history" onclick="window.switchAchievementTab('history')" class="gadget-btn" style="background: rgba(255,255,255,0.1);">
+                <i class="fa-solid fa-history"></i> Historia
+            </button>
+        </div>
+        <div id="achievements-container" style="display: grid; gap: 15px;">
+            <!-- Achievements will be rendered here -->
+        </div>
+        <div id="achievements-history" style="display: none; margin-top: 10px;">
+            <div id="achievements-history-list" style="display: grid; gap: 10px;">
+                <!-- History will be rendered here -->
             </div>
         </div>
     </div>
@@ -489,12 +617,32 @@
         <div class="modal-header">
             <div style="display:flex; align-items:center; gap:15px;">
                 <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
-                <h3 style="margin:0">🖼️ Schematy i Map</h3>
+                <h3 id="gallery-modal-title" style="margin:0">🖼️ Schematy i Map</h3>
             </div>
+        </div>
+        
+        <!-- Tabs for gallery modes (shown only when not in full todo mode) -->
+        <div id="gallery-tabs" class="auth-tabs" style="margin-bottom:15px; display:none;">
+            <button id="gallery-tab-schematy" class="auth-tab active" onclick="window.switchGalleryTab('schematy')">SCHEMATY</button>
+            <button id="gallery-tab-todo" class="auth-tab" onclick="window.switchGalleryTab('todo')">TO DO</button>
         </div>
         
         <div id="gallery-list" class="gallery-grid">
             <!-- Dynamiczna lista schematów -->
+        </div>
+
+        <!-- NOWE: Panel szybkiego dodawania w galerii -->
+        <div id="gallery-quick-add-panel" class="card" style="display: none; margin-top: 20px; background: rgba(129, 140, 248, 0.1); border: 1px solid var(--accent);">
+            <h4 id="gallery-add-panel-title" style="margin: 0 0 10px 0; color: var(--accent); font-size: 14px;">➕ SZYBKIE DODAWANIE</h4>
+            <div style="display: grid; gap: 8px;">
+                <input type="text" id="quick-gallery-title" placeholder="Tytuł schematu / Tekst">
+                <input type="text" id="quick-gallery-src" placeholder="Link do zdjęcia (opcjonalnie)">
+                <div style="display: flex; gap: 8px;">
+                    <input type="number" id="quick-gallery-w" placeholder="Szerokość" value="1600">
+                    <input type="number" id="quick-gallery-h" placeholder="Wysokość" value="2000">
+                </div>
+                <button id="quick-gallery-add-btn" onclick="window.addNewGalleryItem(true)" style="background: var(--success); font-size: 12px; padding: 12px; font-weight: 800;">DODAJ SCHEMAT</button>
+            </div>
         </div>
     </div>
 
@@ -502,19 +650,52 @@
         <div class="modal-header">
             <div style="display:flex; align-items:center; gap:15px;">
                 <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
-                <h3 style="margin:0">⚙️ Baza Stacji</h3>
+                <h3 style="margin:0">⚙️ Ustawienia Bazy</h3>
             </div>
-            <div id="settings-station-count" style="background: var(--accent); padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(129, 140, 248, 0.3);">STACJE: 0</div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <button onclick="window.openMonthlyTickets();" style="padding: 6px 12px; font-size: 10px; background: var(--success); border-radius: 10px; font-weight: 800; border: none; cursor: pointer; display:flex; gap:5px; align-items:center;">
+                    <i class="fa-solid fa-calendar-check"></i> WYBIRZ BILET MIESIECZNY
+                </button>
+                <div id="settings-station-count" style="background: var(--accent); padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 900; box-shadow: 0 0 10px rgba(129, 140, 248, 0.3);">STACJE: 0</div>
+            </div>
         </div>
-        <input type="text" id="station-search" placeholder="🔍 Szukaj stacji w bazie..." oninput="window.filterStations()">
-        <div id="full-station-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; overflow-y:auto; margin-top:15px; padding-bottom:30px;"></div>
+
+        <div class="auth-tabs" style="margin-bottom: 20px;">
+            <button id="settings-tab-stations" class="auth-tab active" onclick="window.switchSettingsTab('stations')">BAZA STACJI</button>
+            <button id="settings-tab-tables" class="auth-tab" onclick="window.switchSettingsTab('tables')">CENNIK</button>
+        </div>
+
+        <div id="settings-view-stations">
+            <input type="text" id="station-search" placeholder="🔍 Szukaj stacji w bazie..." oninput="window.filterStations()">
+            <div id="full-station-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; overflow-y:auto; margin-top:15px; padding-bottom:30px;"></div>
+        </div>
+
+        <div id="settings-view-tables" style="display: none;">
+            <div class="card" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);">
+                <h4 style="margin: 0 0 15px 0; color: var(--accent); display: flex; align-items: center; gap: 10px;">
+                    <i class="fa-solid fa-table"></i> CENNIK TARYFOWY
+                </h4>
+                
+                <div style="display: flex; gap: 8px; margin-bottom: 15px;">
+                    <button id="readonly-tariff-tab-miejska" onclick="window.switchReadonlyTariffTab('miejska')" style="flex: 1; padding: 10px; font-size: 10px; background: var(--accent); font-weight: 800; border-radius: 8px;">MIEJSKA (PR, SKMT)</button>
+                    <button id="readonly-tariff-tab-wojewodzka" onclick="window.switchReadonlyTariffTab('wojewodzka')" style="flex: 1; padding: 10px; font-size: 10px; background: rgba(255,255,255,0.05); font-weight: 800; border-radius: 8px;">WOJEWÓDZKA (IC)</button>
+                </div>
+
+                <div id="readonly-tariff-rows" style="max-height: 500px; overflow-y: auto;">
+                    <!-- Tu wskoczy tabela taryfowa w wersji tylko do odczytu -->
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="history-modal" class="modal">
         <div class="modal-header">
             <div style="display:flex; align-items:center; gap:15px;">
                 <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
-                <h3 style="margin:0">📜 Pełna Historia Tras</h3>
+                <div>
+                    <h3 style="margin:0">📜 Historia Tras</h3>
+                    <div id="history-simulation-info" style="font-size:11px; opacity:0.8; color:var(--warning); margin-top:2px; display:none;"></div>
+                </div>
             </div>
         </div>
         <div style="overflow-x: auto; flex-grow: 1;">
@@ -534,6 +715,30 @@
                     <!-- Dane z JS -->
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    <!-- NOWE: Modal Szczegółów Natężenia -->
+    <div id="heat-details-modal" class="modal" style="background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); border-top: 2px solid var(--warning);">
+        <div class="modal-header">
+            <h3 id="heat-details-title" style="margin:0; color: var(--warning);">🔍 Szczegóły Natężenia</h3>
+            <button class="close-btn" onclick="document.getElementById('heat-details-modal').classList.remove('active')"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="heat-details-content" style="padding: 20px; overflow-y: auto; flex-grow: 1;">
+            <div class="card" style="background: rgba(255,255,255,0.05); margin-bottom: 15px; text-align: center;">
+                <span style="font-size: 11px; opacity: 0.6; display: block; margin-bottom: 5px;">ŁĄCZNA LICZBA WIZYT:</span>
+                <span id="heat-details-count" style="font-size: 32px; font-weight: 900; color: #fff;">0</span>
+            </div>
+            
+            <h4 style="margin: 20px 0 10px 0; font-size: 12px; color: var(--accent); letter-spacing: 1px;">🚂 WYKORZYSTANE SKŁADY:</h4>
+            <div id="heat-details-units" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                <!-- Tu wskoczą składy -->
+            </div>
+
+            <h4 style="margin: 25px 0 10px 0; font-size: 12px; color: var(--accent); letter-spacing: 1px;">📅 OSTATNIE PRZEJAZDY:</h4>
+            <div id="heat-details-recent" style="display: grid; gap: 8px;">
+                <!-- Tu wskoczą ostatnie przejazdy -->
+            </div>
         </div>
     </div>
 
@@ -623,7 +828,7 @@
                 <div id="top-routes-list" style="display: grid; gap: 8px;"></div>
             </div>
 
-            <div class="card" style="background: rgba(0,0,0,0.3); border-left: 3px solid #f472b6;">
+            <div id="top-cities-card" class="card" style="background: rgba(0,0,0,0.3); border-left: 3px solid #f472b6;">
                 <h4 style="margin:0 0 10px 0; color:#f472b6; font-size: 11px; letter-spacing: 1px;">🏙️ TOP MIASTA</h4>
                 <div id="top-cities-list" style="display: grid; gap: 8px;"></div>
             </div>
@@ -642,6 +847,65 @@
                 <h4 style="margin:0 0 10px 0; color:var(--success); font-size: 11px; letter-spacing: 1px;">� TOP JEDNOSTKI (PEŁNE)</h4>
                 <div id="top-units-list" style="display: grid; gap: 8px;"></div>
             </div>
+        </div>
+    </div>
+
+    <div id="monthly-tickets-modal" class="modal">
+        <div class="modal-header">
+            <div style="display:flex; align-items:center; gap:15px;">
+                <div class="modal-menu-trigger" onclick="window.toggleMenu()"><i class="fa-solid fa-bars"></i></div>
+                <h3 style="margin:0">🎫 Bilety miesięczne</h3>
+            </div>
+        </div>
+        <div style="padding: 20px; overflow-y: auto; flex-grow: 1;">
+            <!-- Aktywne bilety -->
+            <h4 style="margin: 0 0 15px 0; color: var(--accent); font-size: 14px;">Aktywne bilety</h4>
+            <div id="active-tickets-container" style="display: grid; gap: 10px; margin-bottom: 20px;"></div>
+            
+            <!-- Dodaj nowy bilet -->
+            <div class="card" style="background: rgba(0,0,0,0.3); margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px 0; color: var(--warning); font-size: 14px;">Dodaj nowy bilet</h4>
+                <div style="display: grid; gap: 10px;">
+                    <input type="text" id="new-ticket-name" placeholder="Nazwa biletu (np. Pomorskie Styczeń)" style="padding: 10px; font-size: 13px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white;">
+                    <select id="new-ticket-type" style="padding: 10px; font-size: 13px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white;">
+                        <option value="pomorskie">Bilet Miesięczny Pomorskie</option>
+                        <option value="ulgowy">Miesięczny POLREGIO Ulgowy</option>
+                    </select>
+                    <input type="date" id="new-ticket-start" placeholder="Data rozpoczęcia" style="padding: 10px; font-size: 13px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white;">
+                    <input type="date" id="new-ticket-end" placeholder="Data zakończenia" style="padding: 10px; font-size: 13px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white;">
+                    <input type="number" id="new-ticket-price" placeholder="Cena biletu (zł)" step="0.01" style="padding: 10px; font-size: 13px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white;">
+                    <button onclick="window.addNewMonthlyTicket()" style="background: var(--success); padding: 12px; font-weight: 800;">Dodaj bilet</button>
+                </div>
+            </div>
+            
+            <!-- Archiwum -->
+            <h4 style="margin: 0 0 15px 0; color: rgba(255,255,255,0.6); font-size: 14px;">Archiwum</h4>
+            <div id="archive-tickets-container" style="display: grid; gap: 10px;"></div>
+        </div>
+    </div>
+
+    <div id="ticket-details-modal" class="modal">
+        <div class="modal-header">
+            <div style="display:flex; align-items:center; gap:15px;">
+                <div class="modal-menu-trigger" onclick="window.closeTicketDetails()"><i class="fa-solid fa-arrow-left"></i></div>
+                <h3 id="ticket-details-title" style="margin:0">Szczegóły biletu</h3>
+            </div>
+        </div>
+        <div id="ticket-details-content" style="padding: 20px; overflow-y: auto; flex-grow: 1;">
+            <!-- Ticket details content -->
+        </div>
+    </div>
+
+    <!-- Wrapped Modal -->
+    <div id="wrapped-modal" class="modal">
+        <div class="modal-header">
+            <div style="display:flex; align-items:center; gap:15px;">
+                <div class="modal-menu-trigger" onclick="window.closeWrapped()"><i class="fa-solid fa-xmark"></i></div>
+                <h3 style="margin:0">🎁 Podsumowanie</h3>
+            </div>
+        </div>
+        <div id="wrapped-content" style="padding: 20px; overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+            <!-- Wrapped content will be here -->
         </div>
     </div>
 
@@ -664,86 +928,72 @@
             <button onclick="window.checkSecretPassword()" style="margin-top: 15px; background: var(--accent);">ZALOGUJ</button>
         </div>
 
-        <div id="secret-content-view" style="display: none; flex-direction: column; gap: 20px; margin-top: 10px; overflow-y: auto;">
-            <div class="card" style="background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 100%);">
-                <h4 style="margin: 0 0 10px 0; color: var(--warning);">✨ BAJERY ALBATROSA</h4>
+        <div id="secret-content-view" style="display: none; flex-direction: column; gap: 20px; margin-top: 10px; height: 100%; overflow: hidden;">
+            <!-- TABS -->
+            <div style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px; flex-shrink: 0; position: sticky; top: 0; z-index: 10; background: #0f172a; padding-top: 10px;">
+                <button id="tab-system" onclick="window.switchAdminTab('system')" class="gadget-btn" style="background: var(--accent); flex-shrink: 0; padding: 8px 12px; font-size: 11px;">
+                    ⚙️ System
+                </button>
+                <button id="tab-tools" onclick="window.switchAdminTab('tools')" class="gadget-btn" style="background: rgba(255,255,255,0.1); flex-shrink: 0; padding: 8px 12px; font-size: 11px;">
+                    🛠️ Narzędzia
+                </button>
+                <button id="tab-stations-trips" onclick="window.switchAdminTab('stations-trips')" class="gadget-btn" style="background: rgba(255,255,255,0.1); flex-shrink: 0; padding: 8px 12px; font-size: 11px;">
+                    📍 Stacje i Przejazdy
+                </button>
+                <button id="tab-cities" onclick="window.switchAdminTab('cities')" class="gadget-btn" style="background: rgba(255,255,255,0.1); flex-shrink: 0; padding: 8px 12px; font-size: 11px;">
+                    🏙️ Miasta
+                </button>
+                <button id="tab-tariffs" onclick="window.switchAdminTab('tariffs')" class="gadget-btn" style="background: rgba(255,255,255,0.1); flex-shrink: 0; padding: 8px 12px; font-size: 11px;">
+                    📊 Cenniki
+                </button>
+                <button id="tab-monthly-tickets" onclick="window.switchAdminTab('monthly-tickets')" class="gadget-btn" style="background: rgba(255,255,255,0.1); flex-shrink: 0; padding: 8px 12px; font-size: 11px;">
+                    🎫 Bilety miesięczne
+                </button>
+                <button id="tab-achievements" onclick="window.switchAdminTab('achievements')" class="gadget-btn" style="background: rgba(255,255,255,0.1); flex-shrink: 0; padding: 8px 12px; font-size: 11px;">
+                    🏆 Osiągnięcia
+                </button>
+                <button id="tab-settings" onclick="window.switchAdminTab('settings')" class="gadget-btn" style="background: rgba(255,255,255,0.1); flex-shrink: 0; padding: 8px 12px; font-size: 11px;">
+                    🔧 Ustawienia bazy
+                </button>
+            </div>
+            <!-- TAB CONTENT (scrollable) -->
+            <div id="secret-tab-contents" style="overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 20px;">
+
+            <!-- SYSTEM I KONFIGURACJA TAB -->
+            <div id="tab-content-system" class="card" style="background: linear-gradient(135deg, #1e1b4b 0%, #4c1d95 100%);">
+                <h4 style="margin: 0 0 10px 0; color: var(--warning);">⚙️ SYSTEM I KONFIGURACJA</h4>
                 <div style="display: grid; gap: 10px;">
                     <div class="secret-gadget">
-                        <span>� Status Systemu</span>
+                        <span>📡 Status Systemu</span>
                         <select id="admin-system-status" onchange="window.setSystemStatus(this.value)" class="gadget-btn" style="background: #1e293b; color: white; width: auto; font-size: 10px; padding: 5px;">
                             <option value="online">ONLINE</option>
                             <option value="offline">OFFLINE</option>
                             <option value="maintenance">KONSERWACJA</option>
                         </select>
                     </div>
-                    <div class="secret-gadget">
-                        <span>🌈 Tęczowy Tryb (Cała Strona)</span>
-                        <button id="rainbow-mode-btn" onclick="window.toggleRainbowMode()" class="gadget-btn">WŁĄCZ 🌈</button>
-                    </div>
-                    <div class="secret-gadget">
-                        <span>🧪 TEST: Ekran Startowy (Dla wszystkich)</span>
-                        <button id="force-auth-toggle-btn" onclick="window.toggleForceAuth()" class="gadget-btn" style="background: var(--danger);">WYŁĄCZONY</button>
-                    </div>
-                    <div class="secret-gadget">
-                        <span>👁️ Podgląd Ekranu Startowego (Tylko Ty)</span>
-                        <button onclick="window.previewLandingPage()" class="gadget-btn" style="background: var(--accent);">URUCHOM 👁️</button>
-                    </div>
-                    <div class="secret-gadget">
-                        <span>🔥 Kolorystyka Heatmapy</span>
-                        <select id="heat-color-theme" onchange="window.updateHeatColorTheme(this.value)" class="gadget-btn" style="background: #1e293b; color: white; width: auto; font-size: 10px; padding: 5px;">
-                            <option value="classic">Klasyczny (Ogień)</option>
-                            <option value="electric">Elektryczny (Neon)</option>
-                            <option value="nature">Natura (Las)</option>
-                            <option value="sunset">Zachód Słońca</option>
-                            <option value="royal">Królewski (Złoto/Purpura)</option>
-                        </select>
-                    </div>
-                    <div class="secret-gadget">
-                        <span>🗺️ Tło Mapy (Heatmapa)</span>
-                        <input type="color" id="heat-map-bg-color" onchange="window.updateHeatMapBg(this.value)" style="width: 50px; height: 25px; border: none; padding: 0; background: transparent; cursor: pointer;">
-                    </div>
-                    <div class="secret-gadget" style="flex-direction: column; align-items: stretch; gap: 5px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>🔥 Grubość linii Heatmapy</span>
-                            <span id="heat-thickness-val" style="font-size: 10px; font-weight: 900; color: var(--accent);">4</span>
+                    
+                    <div class="secret-gadget" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <span style="font-size: 10px;">🔒 Blokada FUNKCJA KM</span>
+                            <button id="calc-lock-toggle-btn" onclick="window.toggleCalcLock()" class="gadget-btn" style="background: var(--danger); font-size: 10px;">WYŁĄCZONA</button>
                         </div>
-                        <input type="range" id="heat-line-thickness-input" min="1" max="20" step="0.5" value="4" oninput="document.getElementById('heat-thickness-val').innerText=this.value; window.updateHeatLineThickness(this.value)" style="width: 100%;">
-                    </div>
-                    <div class="secret-gadget" style="flex-direction: column; align-items: stretch; gap: 10px;">
-                        <span style="font-weight: 700; color: var(--accent);"><i class="fa-solid fa-camera"></i> Domyślne Widoki Map</span>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                            <button onclick="window.saveDefaultView('base')" class="gadget-btn" style="background: #334155; font-size: 9px;">ZAPISZ EDYTOR</button>
-                            <button onclick="window.saveDefaultView('heat')" class="gadget-btn" style="background: #334155; font-size: 9px;">ZAPISZ HEATMAPĘ</button>
-                        </div>
-                        <p style="font-size: 8px; opacity: 0.5; margin: 0;">Przybliż mapę w wybrane miejsce, a następnie kliknij przycisk, aby zapisać ten widok jako startowy dla wszystkich.</p>
-                    </div>
-                    <div class="secret-gadget" style="flex-direction: column; align-items: stretch; gap: 10px; border: 1px solid rgba(255,255,255,0.1); padding: 10px; border-radius: 12px; background: rgba(0,0,0,0.2);">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-weight: 700; color: #38bdf8;"><i class="fa-solid fa-cloud-arrow-down"></i> Status Offline (Cache)</span>
-                            <div id="sw-status-badge" style="font-size: 10px; padding: 4px 10px; border-radius: 20px; background: #475569;">SPRAWDZANIE...</div>
-                        </div>
-                        <p style="font-size: 9px; opacity: 0.6; margin: 0;">Status pobrania plików aplikacji do pamięci urządzenia (Service Worker).</p>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                            <button onclick="window.simulateOfflineMode()" class="gadget-btn" style="background: #334155; border: 1px solid #475569; font-size: 9px;">SYMULUJ OFFLINE</button>
-                            <button onclick="window.clearAppCache()" class="gadget-btn" style="background: #991b1b; border: 1px solid #b91c1c; font-size: 9px;">WYCZYŚĆ CACHE</button>
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <span style="font-size: 10px;">🧮 WŁĄCZ FUNKCJĘ KM</span>
+                            <button id="calc-btn-toggle-btn" onclick="window.toggleCalcBtn()" class="gadget-btn" style="background: var(--danger); font-size: 10px;">WYŁĄCZONY</button>
                         </div>
                     </div>
+
+                    <div class="secret-gadget" style="flex-direction: column; gap: 5px;">
+                        <span style="font-size: 10px; opacity: 0.6;">Komunikat blokady KM:</span>
+                        <div style="display: flex; gap: 5px;">
+                            <input type="text" id="calc-lock-msg-input" placeholder="Powód blokady..." style="padding: 8px; font-size: 11px; background: rgba(0,0,0,0.2); flex: 1;">
+                            <button onclick="window.saveCalcLockMsg()" style="width: auto; padding: 0 15px; font-size: 10px; background: var(--success);">ZAPISZ</button>
+                        </div>
+                    </div>
+
                     <div class="secret-gadget" style="flex-direction: column; align-items: stretch; gap: 10px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>🔒 Blokada Funkcji KM</span>
-                            <button id="calc-lock-toggle-btn" onclick="window.toggleCalcLock()" class="gadget-btn" style="background: var(--danger); width: auto;">WYŁĄCZONA</button>
-                        </div>
-                        <div style="display: flex; flex-direction: column; gap: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
-                            <span style="font-size: 10px; opacity: 0.6;">Komunikat blokady:</span>
-                            <div style="display: flex; gap: 5px;">
-                                <input type="text" id="calc-lock-msg-input" placeholder="Powód blokady..." style="padding: 8px; font-size: 11px; background: rgba(0,0,0,0.2); flex: 1;">
-                                <button onclick="window.saveCalcLockMsg()" style="width: auto; padding: 0 15px; font-size: 10px; background: var(--success);">ZAPISZ</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="secret-gadget" style="flex-direction: column; align-items: stretch; gap: 10px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>� Tryb Konserwacji (Blokada Wejścia)</span>
+                            <span>🚧 Tryb Konserwacji (Blokada Wejścia)</span>
                             <button id="maintenance-toggle-btn" onclick="window.toggleMaintenanceMode()" class="gadget-btn" style="background: var(--danger);">WYŁĄCZONY</button>
                         </div>
                         <div style="display: flex; flex-direction: column; gap: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
@@ -754,11 +1004,90 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="secret-gadget" style="flex-direction: column; align-items: stretch; gap: 10px; border: 1px solid rgba(255,255,255,0.1); padding: 10px; border-radius: 12px; background: rgba(0,0,0,0.2);">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-weight: 700; color: #38bdf8;"><i class="fa-solid fa-cloud-arrow-down"></i> Status Offline (Cache)</span>
+                            <div id="sw-status-badge" style="font-size: 10px; padding: 4px 10px; border-radius: 20px; background: #475569;">SPRAWDZANIE...</div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr; gap: 8px;">
+                            <button onclick="window.simulateOfflineMode()" class="gadget-btn" style="background: #334155; border: 1px solid #475569; font-size: 9px;">SYMULUJ OFFLINE</button>
+                        </div>
+                    </div>
+
+                    <div class="secret-gadget" style="flex-direction: column; align-items: stretch; gap: 10px; border: 1px solid rgba(255,255,255,0.1); padding: 10px; border-radius: 12px; background: rgba(0,0,0,0.2);">
+                        <h5 style="margin: 0; color: #f97316;"><i class="fa-solid fa-key"></i> Kody Zaproszenia</h5>
+                        <div style="display: grid; gap: 8px;">
+                            <input type="text" id="new-invite-code" placeholder="Nowy kod zaproszenia" style="padding: 8px; font-size: 11px; background: rgba(0,0,0,0.2);">
+                            <button onclick="window.addInviteCode()" style="background: var(--success); font-size: 10px; padding: 8px;">DODAJ KOD</button>
+                        </div>
+                        <div id="admin-invite-codes-list" style="display: grid; gap: 6px; max-height: 150px; overflow-y: auto;">
+                            <!-- Lista kodów zaproszenia -->
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="card" style="background: rgba(0,0,0,0.3);">
-                <h4 style="margin: 0 0 10px 0; color: var(--accent);">🛠️ ZARZĄDZANIE SCHEMATAMI</h4>
+            <!-- NARZĘDZIA I TESTY TAB -->
+            <div id="tab-content-tools" class="card" style="background: rgba(0,0,0,0.3); display: none;">
+                <h4 style="margin: 0 0 10px 0; color: var(--accent);">🛠️ NARZĘDZIA I TESTY</h4>
+                <button onclick="window.toggleFloatingGui()" style="background: var(--accent); width: 100%; padding: 12px; margin-bottom: 10px; font-weight: 800;">
+                    <i class="fa-solid fa-up-right-from-square"></i> OTWÓRZ PŁYWAJĄCE GUI
+                </button>
+                
+                <div class="secret-gadget" style="flex-direction: column; align-items: stretch; gap: 8px; margin-bottom: 15px;">
+                    <span style="font-size: 11px; color: var(--accent); font-weight: bold; letter-spacing: 1px;">🚀 EKRAN STARTOWY</span>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <span style="font-size: 9px; opacity: 0.6;">DLA WSZYSTKICH:</span>
+                            <button id="force-auth-toggle-btn" onclick="window.toggleForceAuth()" class="gadget-btn" style="background: var(--danger); font-size: 10px;">WYŁĄCZONY</button>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <span style="font-size: 9px; opacity: 0.6;">PODGLĄD (TYLKO TY):</span>
+                            <button onclick="window.previewLandingPage()" class="gadget-btn" style="background: var(--info); font-size: 10px;">👁️ OTWÓRZ</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 15px;">
+                    <button onclick="window.shootConfetti()" class="gadget-btn" style="background: var(--success); font-size: 10px;">🎉 KONFETTI</button>
+                    <button onclick="window.toggleRainbowMode()" class="gadget-btn" style="background: var(--warning); font-size: 10px;">🌈 TĘCZA</button>
+                    <button onclick="window.simulateOfflineMode()" class="gadget-btn" style="background: #475569; font-size: 10px;">✈️ OFFLINE</button>
+                    <button id="tariff-tab-toggle-btn" onclick="window.toggleTariffTabVisibility()" class="gadget-btn" style="background: var(--danger); font-size: 10px;">📊 CENNIK: OFF</button>
+                    <button onclick="window.testTicketExpiration()" class="gadget-btn" style="background: #3b82f6; font-size: 10px; grid-column: span 2;"><i class="fa-solid fa-ticket"></i> TEST WYGAŚNIĘCIA BILETU</button>
+                    <button onclick="window.testRandomAchievement()" class="gadget-btn" style="background: #a855f7; font-size: 10px; grid-column: span 2;"><i class="fa-solid fa-star"></i> TEST LOSOWEGO OSIĄGNIĘCIA</button>
+                </div>
+
+                <!-- NOWE: Zarządzanie stanem konfetti -->
+                <div class="secret-gadget" style="flex-direction: column; align-items: stretch; gap: 8px; margin-bottom: 15px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                    <span style="font-size: 11px; color: var(--accent); font-weight: bold;">STAN KONFETTI (AUTO-TRIGGER)</span>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <span style="font-size: 9px; opacity: 0.6;">OSTATNI ODCZYT (%):</span>
+                            <input type="number" id="confetti-last-percent" placeholder="np. 100" style="padding: 8px; font-size: 11px; background: rgba(0,0,0,0.2);">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                            <span style="font-size: 9px; opacity: 0.6;">NASTĘPNY PRÓG (%):</span>
+                            <input type="text" id="confetti-next-threshold" readonly style="padding: 8px; font-size: 10px; background: rgba(255,255,255,0.05); border: none; color: var(--accent); font-weight: bold;">
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 5px;">
+                        <span style="font-size: 9px; opacity: 0.6;">OSTATNIE WYWOŁANIE (DATA):</span>
+                        <input type="text" id="confetti-last-time" style="padding: 8px; font-size: 10px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: #fff;">
+                    </div>
+                    <button onclick="window.saveConfettiState()" style="background: var(--success); font-size: 10px; padding: 10px; font-weight: bold;">ZAPISZ STAN KONFETTI</button>
+                </div>
+
+                <div class="secret-gadget" style="margin-bottom: 15px;">
+                    <span>➕ WŁĄCZ DOPISYWANIE SCHEMATÓW</span>
+                    <button id="gallery-add-mode-toggle-btn" onclick="window.toggleGalleryAddMode()" class="gadget-btn">WYŁĄCZONY</button>
+                </div>
+
+                <div class="secret-gadget" style="margin-bottom: 15px;">
+                    <span>✅ ZAMIEN SCHEMATY NA TO DO</span>
+                    <button id="gallery-todo-toggle-btn" onclick="window.toggleGalleryTodoMode()" class="gadget-btn">WYŁĄCZONY</button>
+                </div>
+
                 <div style="display: grid; gap: 8px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px;">
                     <input type="text" id="new-gallery-title" placeholder="Tytuł schematu / Tekst">
                     <input type="text" id="new-gallery-src" placeholder="Link do zdjęcia (opcjonalnie)">
@@ -766,6 +1095,10 @@
                         <input type="number" id="new-gallery-w" placeholder="Szerokość (px)" value="1600">
                         <input type="number" id="new-gallery-h" placeholder="Wysokość (px)" value="2000">
                     </div>
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 11px; cursor: pointer; padding: 5px; background: rgba(255,255,255,0.05); border-radius: 5px;">
+                        <input type="checkbox" id="new-gallery-completed">
+                        <span>Oznacz jako ukończone / odhaczone</span>
+                    </label>
                     <button onclick="window.addNewGalleryItem()" style="background: var(--success); font-size: 12px; padding: 10px;">DODAJ NOWY ELEMENT</button>
                 </div>
                 <div id="admin-gallery-list" style="display: grid; gap: 10px; max-height: 200px; overflow-y: auto;">
@@ -773,7 +1106,8 @@
                 </div>
             </div>
 
-            <div class="card" style="background: rgba(0,0,0,0.3);">
+            <!-- STACJE I PRZEJAZDY TAB -->
+            <div id="tab-content-stations-trips" class="card" style="background: rgba(0,0,0,0.3); display: none;">
                 <h4 style="margin: 0 0 10px 0; color: #fbbf24;">📍 ZARZĄDZANIE STACJAMI</h4>
                 <div style="display: grid; gap: 8px; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -805,21 +1139,23 @@
                     <button onclick="window.saveMapBgSettings()" style="background: var(--success); font-size: 10px; padding: 8px; margin-top: 5px;">ZAPISZ SKALOWANIE</button>
                 </div>
                 <input type="text" id="admin-station-search" placeholder="🔍 Szukaj stacji..." style="margin-bottom: 10px; padding: 8px; font-size: 12px; background: rgba(0,0,0,0.2);">
-                <div id="admin-stations-list" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 250px; overflow-y: auto;">
+                <div id="admin-stations-list" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 250px; overflow-y: auto; margin-bottom: 20px;">
                     <!-- Lista stacji do edycji/usuwania -->
                 </div>
-            </div>
 
-            <div class="card" style="background: rgba(0,0,0,0.3);">
-                <h4 style="margin: 0 0 10px 0; color: #f87171;">🚂 ZARZĄDZANIE PRZEJAZDAMI</h4>
+                <h4 style="margin: 0 0 10px 0; color: #f87171; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">🚂 ZARZĄDZANIE PRZEJAZDAMI</h4>
                 <input type="text" id="admin-trip-search" placeholder="🔍 Szukaj przejazdu (stacja, nr, data)..." style="margin-bottom: 10px; padding: 8px; font-size: 12px; background: rgba(0,0,0,0.2);">
                 <div id="admin-trips-list" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 250px; overflow-y: auto;">
                     <!-- Lista przejazdów do edycji/usuwania -->
                 </div>
             </div>
 
-            <div class="card" style="background: rgba(0,0,0,0.3);">
-                <h4 style="margin: 0 0 10px 0; color: #38bdf8;">🏙️ ZARZĄDZANIE MIASTAMI</h4>
+            <!-- MIASTA TAB -->
+            <div id="tab-content-cities" class="card" style="background: rgba(0,0,0,0.3); display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h4 style="margin: 0; color: #38bdf8;">🏙️ ZARZĄDZANIE MIASTAMI</h4>
+                    <button id="city-ranking-toggle-btn" onclick="window.toggleCityRanking()" class="gadget-btn" style="background: var(--success); font-size: 10px; width: auto; padding: 5px 10px;">RANKING: WIDOCZNY</button>
+                </div>
                 <div style="display: grid; gap: 8px; margin-bottom: 15px;">
                     <input type="text" id="new-city-name" placeholder="Nazwa miasta">
                     <input type="number" id="new-city-count" placeholder="Liczba wizyt" value="1">
@@ -830,71 +1166,164 @@
                 </div>
             </div>
 
-            <div class="card" style="background: rgba(0,0,0,0.3); border: 1px solid var(--danger);">
-                <h4 style="margin: 0 0 10px 0; color: var(--danger);"><i class="fa-solid fa-shield-halved"></i> 5 OSTATNICH BŁĘDNYCH HASEŁ</h4>
-                <div id="failed-passwords-list" style="display: grid; gap: 8px; font-size: 11px;">
-                    <p style="opacity: 0.5; text-align: center;">Brak prób włamań...</p>
+            <!-- CENNIKI TAB -->
+            <div id="tab-content-tariffs" class="card" style="background: rgba(0,0,0,0.3); display: none;">
+                <h4 style="margin: 0 0 10px 0; color: #a855f7;"><i class="fa-solid fa-table-list"></i> CENNIKI PRZEWOŹNIKÓW</h4>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button id="tariff-tab-miejska" onclick="window.switchTariffTab('miejska')" class="gadget-btn" style="background: var(--accent); flex: 1; font-size: 10px; padding: 10px;">MIEJSKA (PR, SKMT)</button>
+                    <button id="tariff-tab-wojewodzka" onclick="window.switchTariffTab('wojewodzka')" class="gadget-btn" style="background: rgba(255,255,255,0.05); flex: 1; font-size: 10px; padding: 10px;">WOJEWÓDZKA (IC)</button>
+                </div>
+
+                <div id="tariff-table-container" style="display: flex; flex-direction: column; gap: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <span style="font-size: 11px; opacity: 0.7;">Tabela opłat (przewiń w bok)</span>
+                        <button onclick="window.manageDiscounts()" class="gadget-btn" style="background: var(--info); font-size: 10px; width: auto; padding: 5px 10px;">
+                            <i class="fa-solid fa-percent"></i> ZARZĄDZAJ ZNIŻKAMI
+                        </button>
+                    </div>
+                    
+                    <div id="tariff-rows" style="max-height: 400px;">
+                        <!-- Tu wskoczy tabela generowana przez JS -->
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; margin-top: 10px; padding: 15px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <span style="font-size: 9px; opacity: 0.5;">DYSTANS (KM):</span>
+                            <input type="number" id="new-tariff-km" placeholder="np. 2" style="padding: 10px; font-size: 12px; background: rgba(0,0,0,0.3);">
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <span style="font-size: 9px; opacity: 0.5;">CENA 100% (ZŁ):</span>
+                            <input type="number" id="new-tariff-normal" step="0.01" placeholder="np. 3.00" style="padding: 10px; font-size: 12px; background: rgba(0,0,0,0.3);">
+                        </div>
+                        <div style="display: flex; align-items: flex-end;">
+                            <button onclick="window.addTariffRow()" style="background: var(--success); width: 42px; height: 42px; border-radius: 10px; font-size: 18px;"><i class="fa-solid fa-plus"></i></button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="background: rgba(0,0,0,0.3); margin-top: 15px;">
+                    <h4 style="margin: 0 0 10px 0; color: var(--success);">🎫 EDYCJA BILETU</h4>
+                    <div style="display: grid; gap: 8px;">
+                        <span style="font-size: 11px; opacity: 0.6;">Data aktywacji (Ważny od):</span>
+                        <input type="date" id="ticket-start-time" style="background: #fff; color: #000;">
+                        
+                        <span style="font-size: 11px; opacity: 0.6;">Numer biletu:</span>
+                        <input type="text" id="ticket-num-input" placeholder="np. ALV 000067" style="background: #fff; color: #000;">
+                        
+                        <span style="font-size: 11px; opacity: 0.6;">Numer telefonu:</span>
+                        <input type="text" id="ticket-phone-input" placeholder="np. 603865798" style="background: #fff; color: #000;">
+                        
+                        <span style="font-size: 11px; opacity: 0.6;">Emitent:</span>
+                        <input type="text" id="ticket-emit-input" placeholder="np. POLREGIO" style="background: #fff; color: #000;">
+                        
+                        <span style="font-size: 11px; opacity: 0.6;">Cena (zł):</span>
+                        <input type="text" id="ticket-price-input" placeholder="np. 153,00" style="background: #fff; color: #000;">
+
+                        <span style="font-size: 11px; opacity: 0.6;">Treść kodu (Aztec/QR):</span>
+                        <textarea id="custom-qr-data" placeholder="Treść kodu Aztec..." style="width: 100%; height: 80px; padding: 10px; background: #fff; border: 1px solid #ccc; border-radius: 5px; color: #000; font-size: 11px; font-family: monospace; resize: vertical;"></textarea>
+                        
+                        <button onclick="window.saveTicketData()" style="background: var(--success); font-size: 12px; padding: 10px; margin-top: 5px; font-weight: 800;">ZAPISZ DANE BILETU</button>
+                    </div>
                 </div>
             </div>
 
-            <div class="card" style="background: rgba(0,0,0,0.3); border: 1px solid var(--danger);">
-                <h4 style="margin: 0 0 10px 0; color: var(--danger);">🔑 ZMIANA HASŁA</h4>
-                <p style="font-size: 11px; opacity: 0.8; margin-bottom: 10px;">Zmień hasło dostępowe do panelu i trybu konserwacji.</p>
-                <button onclick="window.requestPasswordChange()" style="background: var(--danger); font-size: 12px; padding: 10px; width: 100%;">Zmień hasło...</button>
-            </div>
-
-            <div class="card" style="background: rgba(0,0,0,0.3);">
-                <h4 style="margin: 0 0 10px 0; color: var(--success);">🎫 EDYCJA BILETU</h4>
-                <div style="display: grid; gap: 8px;">
-                    <span style="font-size: 11px; opacity: 0.6;">Data aktywacji (Ważny od):</span>
-                    <input type="datetime-local" id="ticket-start-time" style="background: #fff; color: #000;">
-                    
-                    <span style="font-size: 11px; opacity: 0.6;">Numer biletu:</span>
-                    <input type="text" id="ticket-num-input" placeholder="np. ALV 000067" style="background: #fff; color: #000;">
-                    
-                    <span style="font-size: 11px; opacity: 0.6;">Numer telefonu:</span>
-                    <input type="text" id="ticket-phone-input" placeholder="np. 603865798" style="background: #fff; color: #000;">
-                    
-                    <span style="font-size: 11px; opacity: 0.6;">Emitent:</span>
-                    <input type="text" id="ticket-emit-input" placeholder="np. POLREGIO" style="background: #fff; color: #000;">
-                    
-                    <span style="font-size: 11px; opacity: 0.6;">Cena (zł):</span>
-                    <input type="text" id="ticket-price-input" placeholder="np. 153,00" style="background: #fff; color: #000;">
-
-                    <span style="font-size: 11px; opacity: 0.6;">Treść kodu (Aztec/QR):</span>
-                    <textarea id="custom-qr-data" placeholder="Treść kodu Aztec..." style="width: 100%; height: 80px; padding: 10px; background: #fff; border: 1px solid #ccc; border-radius: 5px; color: #000; font-size: 11px; font-family: monospace; resize: vertical;"></textarea>
-                    
-                    <button onclick="window.saveTicketData()" style="background: var(--success); font-size: 12px; padding: 10px; margin-top: 5px; font-weight: 800;">ZAPISZ DANE BILETU</button>
-                </div>
-            </div>
-            
-            <div class="card">
-                <h4 style="margin: 0 0 10px 0; color: var(--accent);">📊 STATYSTYKI ZAAWANSOWANE</h4>
-                <p id="adv-stats-text" style="font-size: 13px; line-height: 1.5; opacity: 0.8;"></p>
-            </div>
-
-            <div class="card" style="background: #000; border: 1px solid #333;">
-                <h4 style="margin: 0 0 10px 0; color: #0f0; font-family: monospace;">>_ CONSOLE_LOGS</h4>
-                <div id="secret-console" style="font-family: monospace; font-size: 10px; color: #0f0; max-height: 150px; overflow-y: auto; line-height: 1.4;">
-                    <!-- Logi będą tu wpadać -->
+            <!-- BILETY MIESIĘCZNE TAB -->
+            <div id="tab-content-monthly-tickets" class="card" style="background: rgba(0,0,0,0.3); display: none;">
+                <h4 style="margin: 0 0 10px 0; color: var(--accent);"><i class="fa-solid fa-ticket"></i> ZARZĄDZANIE BILETAMI MIESIĘCZNYMI</h4>
+                
+                <div style="margin-bottom: 20px;">
+                    <h5 style="margin: 0 0 10px 0; color: var(--success);">📋 WSZYSTKIE BILETY</h5>
+                    <div id="admin-monthly-tickets-list" style="display: grid; gap: 10px;">
+                        <!-- JS fills this -->
+                    </div>
                 </div>
             </div>
 
-            <!-- EKSPORT DANYCH NA SAMYM DOLE -->
-            <div class="card" style="background: rgba(15, 23, 42, 0.9); border: 2px solid var(--accent); grid-column: 1 / -1; margin-top: 20px;">
-                <h4 style="margin: 0 0 15px 0; color: var(--accent); text-align: center; font-size: 16px; letter-spacing: 1px;"><i class="fa-solid fa-file-export"></i> EKSPORT KOŃCOWY DANYCH</h4>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <button onclick="window.exportData('json')" style="background: var(--accent); padding: 15px; font-weight: 800; font-size: 14px; border-radius: 12px;">
-                        <i class="fa-solid fa-code"></i> POBIERZ JSON
-                    </button>
-                    <button onclick="window.exportData('csv')" style="background: #475569; padding: 15px; font-weight: 800; font-size: 14px; border-radius: 12px;">
-                        <i class="fa-solid fa-file-csv"></i> POBIERZ CSV
-                    </button>
+            <!-- OSIĄGNIĘCIA TAB -->
+            <div id="tab-content-achievements" class="card" style="background: rgba(0,0,0,0.3); display: none;">
+                <h4 style="margin: 0 0 10px 0; color: #fbbf24;"><i class="fa-solid fa-trophy"></i> ZARZĄDZANIE OSIĄGNIĘCIAMI</h4>
+                
+                <div class="secret-gadget" style="flex-direction: column; align-items: stretch; gap: 10px; margin-bottom: 20px; border: 1px solid rgba(255,255,255,0.1); padding: 10px; border-radius: 12px; background: rgba(0,0,0,0.2);">
+                    <h5 style="margin: 0 0 8px 0; color: var(--accent); font-size: 12px;">🧪 TESTOWE ZARZĄDZANIE</h5>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <button onclick="window.unlockAllAchievements()" class="gadget-btn" style="background: var(--success);">
+                            <i class="fa-solid fa-unlock"></i> ODBLOKUJ WSZYSTKIE
+                        </button>
+                        <button onclick="window.resetAllAchievements()" class="gadget-btn" style="background: var(--danger);">
+                            <i class="fa-solid fa-trash"></i> ZRESETUJ WSZYSTKIE
+                        </button>
+                    </div>
                 </div>
-                <div style="text-align: center; margin-top: 15px; font-size: 11px; opacity: 0.6; font-weight: 600;">
-                    OSTATNI EKSPORT: <span id="last-export-date">NIGDY</span>
+                
+                <div style="margin-bottom: 20px;">
+                    <h5 style="margin: 0 0 10px 0; color: var(--accent);">GLOBALNE ODZNACZENIA (POZIOMY)</h5>
+                    <div id="admin-badge-levels-list" style="display: grid; gap: 8px;">
+                        <!-- JS fills this -->
+                    </div>
+                </div>
+
+                <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                    <h5 style="margin: 0 0 10px 0; color: var(--accent);">LISTA OSIĄGNIĘĆ</h5>
+                    <div id="admin-achievements-list" style="display: grid; gap: 10px;">
+                        <!-- JS fills this -->
+                    </div>
                 </div>
             </div>
+
+            <!-- USTAWIENIA BAZY TAB -->
+            <div id="tab-content-settings" class="card" style="background: rgba(0,0,0,0.3); display: none;">
+                <h4 style="margin: 0 0 10px 0; color: var(--accent);">🔧 USTAWIENIA BAZY</h4>
+                
+                <div class="card" style="background: rgba(0,0,0,0.3); margin-top:15px;">
+                    <h5 style="margin:0 0 8px 0; color:var(--warning);">📋 Tryb Galerii</h5>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:11px;">Zamień "Schematy" na "TO DO"</span>
+                        <button id="gallery-todo-toggle-btn" onclick="window.toggleGalleryTodoMode()" class="gadget-btn" style="background:var(--danger); font-size:10px;">OFF</button>
+                    </div>
+                </div>
+                
+                <div class="card" style="background: rgba(0,0,0,0.3); border: 1px solid var(--danger); margin-top: 15px;">
+                    <h4 style="margin: 0 0 10px 0; color: var(--danger);"><i class="fa-solid fa-shield-halved"></i> 5 OSTATNICH BŁĘDNYCH HASEŁ</h4>
+                    <div id="failed-passwords-list" style="display: grid; gap: 8px; font-size: 11px;">
+                        <p style="opacity: 0.5; text-align: center;">Brak prób włamań...</p>
+                    </div>
+                </div>
+
+                <div class="card" style="background: rgba(0,0,0,0.3); border: 1px solid var(--danger); margin-top: 15px;">
+                    <h4 style="margin: 0 0 10px 0; color: var(--danger);">🔑 ZMIANA HASŁA</h4>
+                    <p style="font-size: 11px; opacity: 0.8; margin-bottom: 10px;">Zmień hasło dostępowe do panelu i trybu konserwacji.</p>
+                    <button onclick="window.requestPasswordChange()" style="background: var(--danger); font-size: 12px; padding: 10px; width: 100%;">Zmień hasło...</button>
+                </div>
+                
+                <div class="card" style="margin-top: 15px;">
+                    <h4 style="margin: 0 0 10px 0; color: var(--accent);">📊 STATYSTYKI ZAAWANSOWANE</h4>
+                    <p id="adv-stats-text" style="font-size: 13px; line-height: 1.5; opacity: 0.8;"></p>
+                </div>
+
+                <div class="card" style="background: #000; border: 1px solid #333; margin-top: 15px;">
+                    <h4 style="margin: 0 0 10px 0; color: #0f0; font-family: monospace;">>_ CONSOLE_LOGS</h4>
+                    <div id="secret-console" style="font-family: monospace; font-size: 10px; color: #0f0; max-height: 150px; overflow-y: auto; line-height: 1.4;">
+                        <!-- Logi będą tu wpadać -->
+                    </div>
+                </div>
+
+                <!-- EKSPORT DANYCH NA SAMYM DOLE -->
+                <div class="card" style="background: rgba(15, 23, 42, 0.9); border: 2px solid var(--accent); margin-top: 20px;">
+                    <h4 style="margin: 0 0 15px 0; color: var(--accent); text-align: center; font-size: 16px; letter-spacing: 1px;"><i class="fa-solid fa-file-export"></i> EKSPORT KOŃCOWY DANYCH</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <button onclick="window.exportData('json')" style="background: var(--accent); padding: 15px; font-weight: 800; font-size: 14px; border-radius: 12px;">
+                            <i class="fa-solid fa-code"></i> POBIERZ JSON
+                        </button>
+                        <button onclick="window.exportData('csv')" style="background: #475569; padding: 15px; font-weight: 800; font-size: 14px; border-radius: 12px;">
+                            <i class="fa-solid fa-file-csv"></i> POBIERZ CSV
+                        </button>
+                    </div>
+                    <div style="text-align: center; margin-top: 15px; font-size: 11px; opacity: 0.6; font-weight: 600;">
+                        OSTATNI EKSPORT: <span id="last-export-date">NIGDY</span>
+                    </div>
+                </div>
+            </div>
+            </div> <!-- END secret-tab-contents -->
         </div>
     </div>
 
@@ -903,6 +1332,75 @@
     <div class="menu-trigger" onclick="window.toggleMenu()">☰</div>
 
     <div id="toast-container"></div>
+
+    <!-- Confetti Container -->
+    <div id="confetti-container" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999;"></div>
+
+    <!-- PŁYWAJĄCY PANEL NARZĘDZI ADMINA (GUI) -->
+    <div id="floating-admin-gui" class="floating-admin-gui">
+        <div class="gui-header">
+            <span><i class="fa-solid fa-screwdriver-wrench"></i> ADMIN TOOLS</span>
+            <div class="gui-actions">
+                <button onclick="window.toggleGuiSide()" title="Zmień stronę (Lewo/Prawo)">
+                    <i class="fa-solid fa-arrows-left-right"></i>
+                </button>
+                <button id="gui-pin-btn" onclick="window.toggleGuiPin()" title="Przypnij do ekranu">
+                    <i class="fa-solid fa-thumbtack"></i>
+                </button>
+                <button onclick="window.toggleFloatingGui()" title="Zamknij">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+        </div>
+        <div class="gui-content">
+            <div class="gui-section">
+                <span class="gui-label">TESTY I PODGLĄD</span>
+                <div class="gui-grid" style="grid-template-columns: 1fr;">
+                    <button id="gui-force-auth-btn" onclick="window.toggleForceAuth()" class="gui-btn danger" style="flex-direction: row; justify-content: space-between; padding: 12px;">
+                        <span>🧪 TEST: EKRAN START (GLOBAL)</span>
+                        <b id="gui-force-auth-status">OFF</b>
+                    </button>
+                    <button onclick="window.previewLandingPage()" class="gui-btn info" style="flex-direction: row; gap: 10px; padding: 12px;">
+                        <i class="fa-solid fa-eye"></i> 👁️ PODGLĄD EKRANU START (TYLKO TY)
+                    </button>
+                </div>
+                <div class="gui-grid" style="margin-top: 8px;">
+                    <button onclick="window.shootConfetti()" class="gui-btn success">🎉 KONFETTI</button>
+                    <button id="gui-rainbow-btn" onclick="window.toggleRainbowMode()" class="gui-btn warning"><i class="fa-solid fa-rainbow"></i> TĘCZA: OFF</button>
+                    <button onclick="window.simulateOfflineMode()" class="gui-btn warning"><i class="fa-solid fa-plane-slash"></i> OFFLINE</button>
+                </div>
+            </div>
+            
+            <div class="gui-section">
+                <span class="gui-label">STATUS KONFETTI</span>
+                <div class="gui-confetti-info">
+                    <div class="info-box">
+                        <small>OSTATNI ODCZYT</small>
+                        <b id="gui-confetti-last">- %</b>
+                    </div>
+                    <div class="info-box">
+                        <small>NASTĘPNY PRÓG</small>
+                        <b id="gui-confetti-next">- %</b>
+                    </div>
+                </div>
+            </div>
+
+            <div class="gui-section">
+                <span class="gui-label">SYSTEM</span>
+                <div class="gui-grid" style="grid-template-columns: 1fr 1fr;">
+                    <button onclick="window.saveCurrentMapView('map')" class="gui-btn success" style="padding: 12px; font-weight: 800; font-size: 9px;">
+                        <i class="fa-solid fa-map"></i> ZAPISZ WIDOK MAPY
+                    </button>
+                    <button onclick="window.saveCurrentMapView('heat')" class="gui-btn warning" style="padding: 12px; font-weight: 800; font-size: 9px; color: #000;">
+                        <i class="fa-solid fa-fire"></i> ZAPISZ WIDOK HEAT
+                    </button>
+                    <button id="gui-calc-lock-btn" onclick="window.toggleCalcLock()" class="gui-btn danger">BLOKADA FUNKCJA KM: ON</button>
+                    <button id="gui-calc-btn-visibility" onclick="window.toggleCalcBtn()" class="gui-btn info">WŁĄCZ FUNKCJĘ KM</button>
+                    <button id="gui-maint-btn" onclick="window.toggleMaintenanceMode()" class="gui-btn danger" style="grid-column: span 2;">KONSERWACJA: OFF</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- FULL PAGE RANKING VIEW -->
     <div id="full-ranking-view" class="modal" style="z-index: 60000; background: #0f172a; display: none; flex-direction: column; padding: 0;">
@@ -988,7 +1486,7 @@
     </div>
 
     <!-- DIALOG OVERLAY (DLA NOTATEK I ALBERTÓW) -->
-    <div id="custom-dialog-overlay" class="modal" style="z-index: 70000; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); display: none; align-items: center; justify-content: center;">
+    <div id="custom-dialog-overlay" class="modal" style="z-index: 70000; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); align-items: center; justify-content: center;">
         <div class="card" style="width: 90%; max-width: 400px; background: #1e293b; border: 1px solid var(--accent); padding: 25px;">
             <h3 id="dialog-title" style="margin-top: 0; color: var(--accent); font-size: 18px; display: flex; align-items: center; gap: 10px;">Powiadomienie</h3>
             <div id="dialog-message" style="font-size: 14px; line-height: 1.6; opacity: 0.9; margin: 15px 0; white-space: pre-wrap; word-break: break-word;"></div>
